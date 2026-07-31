@@ -1,4 +1,4 @@
-import { fetchKlines } from "../lib/binance";
+import { fetchKlines, sleep } from "../lib/binance";
 import { config } from "../lib/config";
 import { getMaxOpenTime, upsertKlines } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
@@ -39,6 +39,10 @@ export async function fetchAndStoreRange(
 
     // Fewer than a full page means we've reached the end of available history.
     if (batch.length < REST_PAGE_LIMIT) break;
+
+    // Throttle between pages so a large backfill spreads out and never bursts
+    // against the Binance IP weight budget.
+    if (config.REST_THROTTLE_MS > 0) await sleep(config.REST_THROTTLE_MS);
   }
 
   return written;

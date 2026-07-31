@@ -1,6 +1,71 @@
 import { config } from "./config";
 import type { Kline } from "./types";
 
+export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Rate-limit-aware wrapper around fetch for Binance REST endpoints.
+ *
+ * Safeguards (Binance IP budget is 6000 REQUEST_WEIGHT/min):
+ *  - Reads `X-MBX-USED-WEIGHT-1M` and, once we cross the soft threshold, waits
+ *    out the current minute window before issuing more requests.
+ *  - On 429 (rate limited) / 418 (IP auto-ban) it honours `Retry-After`.
+ *  - Retries 5xx and rate-limit responses with exponential backoff, up to
+ *    REST_MAX_RETRIES, then throws so the caller can log and move on.
+ */
+let usedWeight = 0;
+let windowResetAt = 0;
+
+function backoffMs(attempt: number): number {
+  return Math.min(1000 * 2 ** attempt, 30_000);
+}
+
+export async function binanceFetch(url: URL | string): Promise<Response> {
+  const maxRetries = config.REST_MAX_RETRIES;
+  const softLimit = config.REST_WEIGHT_LIMIT * config.REST_WEIGHT_SOFT_PCT;
+
+  for (let attempt = 0; ; attempt++) {
+    // Proactive pacing: if we're near the weight budget, wait out the window.
+    if (usedWeight >= softLimit && Date.now() < windowResetAt) {
+      await sleep(windowResetAt - Date.now());
+    }
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+
+    // Track remaining weight budget from the response headers.
+    const w = Number(res.headers.get("x-mbx-used-weight-1m"));
+    if (!Number.isNaN(w) && w > 0) {
+      usedWeight = w;
+      windowResetAt = Date.now() + 60_000;
+    }
+
+    if (res.status === 429 || res.status === 418) {
+      // Drain the body so the socket can be reused.
+      await res.text().catch(() => "");
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : backoffMs(attempt);
+      if (attempt >= maxRetries) {
+        throw new Error(`Binance rate limited (${res.status}), gave up after ${attempt} retries`);
+      }
+      await sleep(waitMs);
+      continue;
+    }
+
+    if (res.status >= 500) {
+      await res.text().catch(() => "");
+      if (attempt >= maxRetries) {
+        throw new Error(`Binance server error ${res.status}, gave up after ${attempt} retries`);
+      }
+      await sleep(backoffMs(attempt));
+      continue;
+    }
+
+    return res;
+  }
+}
+
 /** Raw kline tuple returned by Binance REST/WS. */
 type RawKlineTuple = [
   number, // open time
@@ -52,7 +117,7 @@ export async function fetchKlines(
   if (opts.startTime !== undefined) url.searchParams.set("startTime", String(opts.startTime));
   if (opts.endTime !== undefined) url.searchParams.set("endTime", String(opts.endTime));
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  const res = await binanceFetch(url);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`Binance REST ${res.status} for ${symbol}: ${body.slice(0, 200)}`);
