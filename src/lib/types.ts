@@ -96,6 +96,7 @@ export type PipelineStatusView = PipelineStatus & {
 /** Payload pushed over SSE / returned by /api/health. */
 export interface DashboardSnapshot {
   ts: number;
+  interval: string;
   status: PipelineStatusView[];
   market: MarketMetrics[];
   series: Record<string, { t: number; close: number; volume: number }[]>;
