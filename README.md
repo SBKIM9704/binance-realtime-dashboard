@@ -38,6 +38,7 @@
 - [npm 스크립트](#-npm-스크립트)
 - [프로젝트 구조](#-프로젝트-구조)
 - [백필 동작 원리](#-백필-동작-원리)
+- [API 사용량 & Rate Limit](#-api-사용량--rate-limit-안전장치)
 - [대시보드 지표](#-대시보드-지표)
 - [설계 결정 & 트레이드오프](#-설계-결정--트레이드오프)
 - [동작 검증](#-동작-검증)
@@ -146,6 +147,10 @@ npm run dev
 | `RECONCILE_INTERVAL_MS` | `60000` | reconciler 실행 주기(ms) |
 | `RECONCILE_WINDOW_MS` | `21600000` | 결측 스캔 윈도우(ms, 기본 6시간) |
 | `DB_PATH` | `./data/market.db` | SQLite 파일 경로 |
+| `REST_THROTTLE_MS` | `250` | 백필 페이지 요청 사이 지연(ms) — 버스트 방지 |
+| `REST_MAX_RETRIES` | `4` | REST 호출당 최대 재시도(429/418/5xx) |
+| `REST_WEIGHT_LIMIT` | `6000` | 분당 weight 예산 (Binance IP 한도) |
+| `REST_WEIGHT_SOFT_PCT` | `0.8` | 이 비율 초과 시 선제적 페이싱 |
 
 <br />
 
@@ -224,6 +229,27 @@ npm run dev:collector
 ```
 
 로그에 `restart-gap` 백필과 채운 캔들 수가 출력되고, 대시보드의 **Backfilled / Gaps Filled** 값이 증가합니다.
+
+<br />
+
+## 🛡 API 사용량 & Rate Limit 안전장치
+
+Binance API에 **과부하나 IP 밴을 유발하지 않도록** 사용량을 분석하고 코드 레벨 방어를 두었습니다.
+(전체 분석은 👉 **[`docs/rate-limits.md`](docs/rate-limits.md)**)
+
+**실측 요약** — IP 한도는 **6,000 weight/분**, `klines(limit=1000)` 1건 ≈ **2 weight**.
+이 프로젝트의 정상 운영 사용량은 **분당 한도의 0.1% 미만**입니다.
+
+| 위험 | 방어 |
+|------|------|
+| 대량 백필 순간 버스트 | 페이지 요청 사이 **throttle**(`REST_THROTTLE_MS`) |
+| 429 / 418 응답 | **`Retry-After` 준수** 후 재시도, 초과 시 중단 |
+| 한도 근접 | `X-MBX-USED-WEIGHT-1M` 추적 → 소프트 임계치 초과 시 분 경계까지 대기 |
+| 일시적 5xx | 지수 백오프 재시도(`REST_MAX_RETRIES`) |
+| WS 연결 flapping | 재연결 지수 백오프(최대 30s)로 REST 재호출 상한 |
+
+모든 REST 호출은 `src/lib/binance.ts`의 **`binanceFetch` 래퍼** 한 곳을 거치므로, 위 정책이
+일관되게 적용됩니다.
 
 <br />
 
