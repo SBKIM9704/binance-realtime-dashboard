@@ -67,7 +67,7 @@ export async function binanceFetch(url: URL | string): Promise<Response> {
 }
 
 /** Raw kline tuple returned by Binance REST/WS. */
-type RawKlineTuple = [
+export type RawKlineTuple = [
   number, // open time
   string, // open
   string, // high
@@ -82,7 +82,12 @@ type RawKlineTuple = [
   string, // ignore
 ];
 
-function tupleToKline(symbol: string, interval: string, k: RawKlineTuple, isFinal: number): Kline {
+export function tupleToKline(
+  symbol: string,
+  interval: string,
+  k: RawKlineTuple,
+  isFinal: number,
+): Kline {
   return {
     symbol,
     interval,
