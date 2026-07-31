@@ -125,6 +125,11 @@ export function getRecentEvents(limit: number): PipelineEvent[] {
     .all(limit) as PipelineEvent[];
 }
 
+/** Delete pipeline events older than `cutoff` (epoch ms). Returns rows removed. */
+export function pruneEventsBefore(cutoff: number): number {
+  return getDb().prepare("DELETE FROM pipeline_events WHERE ts < ?").run(cutoff).changes;
+}
+
 /** Count events of the given types since `since` (epoch ms) — used for error rate. */
 export function getEventCountSince(types: string[], since: number): number {
   if (types.length === 0) return 0;

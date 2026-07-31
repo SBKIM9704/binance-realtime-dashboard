@@ -1,14 +1,15 @@
 import "dotenv/config";
 import { config } from "../lib/config";
 import { getDb } from "../lib/db";
-import { addEvent, ensureStatus, updateStatus } from "../lib/repositories/pipeline";
+import { pruneKlinesBefore } from "../lib/repositories/klines";
+import { addEvent, ensureStatus, pruneEventsBefore, updateStatus } from "../lib/repositories/pipeline";
 import { getSystemMetrics, updateSystemProcess } from "../lib/repositories/system";
-import { backfillSymbol } from "./backfill";
 import { Ingestor } from "./ingest";
 import { log, logError } from "./logger";
 import { reconcileAll } from "./reconcile";
 
 const SYSTEM_SAMPLE_MS = 3_000;
+const RETENTION_INTERVAL_MS = 60 * 60 * 1000;
 
 /** Periodically sample the collector process (CPU/RAM/uptime) + REST call rate. */
 function startSystemSampler(): NodeJS.Timeout {
@@ -42,40 +43,45 @@ function startSystemSampler(): NodeJS.Timeout {
   }, SYSTEM_SAMPLE_MS);
 }
 
+/** Delete klines/events older than the retention window (caps DB growth at 1s). */
+function runRetention(): void {
+  const cutoff = Date.now() - config.RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  try {
+    const removed = pruneKlinesBefore(config.KLINE_INTERVAL, cutoff) + pruneEventsBefore(cutoff);
+    if (removed > 0) {
+      log(`[retention] pruned ${removed} row(s) older than ${config.RETENTION_DAYS}d`);
+    }
+  } catch (err) {
+    logError("[retention] prune failed:", err);
+  }
+}
+
 async function main(): Promise<void> {
   log("[collector] starting");
   log(`[collector] symbols=${config.symbols.join(",")} interval=${config.KLINE_INTERVAL}`);
 
-  // Open DB (runs migrations) and ensure a status row exists for each symbol.
+  // Open DB (runs migrations), ensure status rows, trim old data on boot.
   getDb();
   for (const symbol of config.symbols) ensureStatus(symbol);
+  runRetention();
 
-  // 1) Startup backfill (first-run history or restart gap — one mechanism).
-  for (const symbol of config.symbols) {
-    try {
-      await backfillSymbol(symbol);
-    } catch (err) {
-      logError(`[collector] startup backfill failed for ${symbol}:`, err);
-    }
-  }
-
-  // 2) Live ingestion over WebSocket (with reconnect + reconnect-backfill).
+  // Live ingestion first: the WS 'open' handler backfills first-run/gap history
+  // in the background, so live candles appear immediately (important at 1s).
   const ingestor = new Ingestor();
   ingestor.start();
 
-  // 3) Periodic reconciler for data completeness.
-  const runReconcile = () => {
+  // Periodic reconciler, process sampler, and retention pruning.
+  const reconcileTimer = setInterval(() => {
     reconcileAll().catch((err) => logError("[collector] reconcile pass failed:", err));
-  };
-  const reconcileTimer = setInterval(runReconcile, config.RECONCILE_INTERVAL_MS);
-
-  // 4) Periodic process/usage sampler (CPU/RAM/uptime, REST call rate).
+  }, config.RECONCILE_INTERVAL_MS);
   const systemTimer = startSystemSampler();
+  const retentionTimer = setInterval(runRetention, RETENTION_INTERVAL_MS);
 
   const shutdown = (signal: string) => {
     log(`[collector] ${signal} received, shutting down`);
     clearInterval(reconcileTimer);
     clearInterval(systemTimer);
+    clearInterval(retentionTimer);
     ingestor.stop();
     // Synchronously mark the pipeline offline so the dashboard reflects the stop
     // even on an abrupt exit (the async ws 'close' event may not fire in time).
