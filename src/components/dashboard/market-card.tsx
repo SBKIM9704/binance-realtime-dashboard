@@ -2,15 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { useApp } from "@/components/providers";
 import { fmtCompact, fmtPct, fmtPrice } from "@/lib/format";
+import type { TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { MarketMetrics } from "@/lib/types";
 import { Sparkline } from "./sparkline";
-
-const BASE_ASSET: Record<string, string> = {
-  BTCUSDT: "Bitcoin",
-  ETHUSDT: "Ethereum",
-};
 
 export function MarketCard({
   metrics,
@@ -23,6 +20,9 @@ export function MarketCard({
 }) {
   const { symbol, lastPrice, changePct24h, volume24h, volatility } = metrics;
   const up = (changePct24h ?? 0) >= 0;
+  const { t } = useApp();
+  const rawName = t(`asset.${symbol}` as TKey);
+  const assetName = rawName.startsWith("asset.") ? symbol : rawName;
 
   // Flash the price briefly on each change to signal live updates.
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
@@ -50,9 +50,7 @@ export function MarketCard({
             </span>
             <span className="label">/ USDT</span>
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {BASE_ASSET[symbol] ?? symbol}
-          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{assetName}</div>
         </div>
         <span
           className={cn(
@@ -88,9 +86,9 @@ export function MarketCard({
       </div>
 
       <div className="grid grid-cols-2 gap-px border-t border-border bg-border">
-        <Stat label="24h Volume (base)" value={fmtCompact(volume24h)} />
+        <Stat label={t("market.volume")} value={fmtCompact(volume24h)} />
         <Stat
-          label="Volatility (30m σ)"
+          label={t("market.volatility")}
           value={volatility != null ? `${(volatility * 100).toFixed(3)}%` : "—"}
         />
       </div>

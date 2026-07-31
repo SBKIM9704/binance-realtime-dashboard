@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { useApp } from "@/components/providers";
 import { LiveDot } from "./live-dot";
 import { fmtDuration, fmtInt, fmtTimeAgo } from "@/lib/format";
 import type { DashboardSnapshot } from "@/lib/types";
@@ -34,6 +35,7 @@ function Cell({
 }
 
 export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: number }) {
+  const { t } = useApp();
   const status = snapshot.status;
   const totalRecords = status.reduce((a, s) => a + s.totalRecords, 0);
   const backfilled = status.reduce((a, s) => a + s.backfilledCount, 0);
@@ -48,11 +50,11 @@ export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: 
   return (
     <div className="grid grid-cols-2 gap-px rounded-lg border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
       {status.map((s: Status) => (
-        <Cell key={s.symbol} label={`${s.symbol} · WS / Lag`}>
+        <Cell key={s.symbol} label={`${s.symbol} · ${t("ops.wsLag")}`}>
           <div className="flex items-center gap-2">
             <LiveDot live={s.wsConnected === 1} />
             <Badge variant={s.wsConnected === 1 ? "success" : "danger"}>
-              {s.wsConnected === 1 ? "Live" : "Down"}
+              {s.wsConnected === 1 ? t("ops.live") : t("ops.down")}
             </Badge>
             <span
               className={cn(
@@ -68,19 +70,19 @@ export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: 
         </Cell>
       ))}
 
-      <Cell label="Total Records">{fmtInt(totalRecords)}</Cell>
-      <Cell label="Backfilled">{fmtInt(backfilled)}</Cell>
-      <Cell label="Gaps Filled / Seen">
+      <Cell label={t("ops.totalRecords")}>{fmtInt(totalRecords)}</Cell>
+      <Cell label={t("ops.backfilled")}>{fmtInt(backfilled)}</Cell>
+      <Cell label={t("ops.gapsFilledSeen")}>
         <span className={gapsDetected > 0 ? "text-[hsl(var(--warning))]" : undefined}>
           {fmtInt(gapsFilled)} / {fmtInt(gapsDetected)}
         </span>
       </Cell>
-      <Cell label="Errors">
+      <Cell label={t("ops.errors")}>
         <span className={errors > 0 ? "text-[hsl(var(--danger))]" : undefined}>
           {fmtInt(errors)}
         </span>
       </Cell>
-      <Cell label="Last Reconcile">{fmtTimeAgo(lastReconcile, now)}</Cell>
+      <Cell label={t("ops.lastReconcile")}>{fmtTimeAgo(lastReconcile, now)}</Cell>
     </div>
   );
 }

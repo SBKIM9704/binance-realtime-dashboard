@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Controls } from "@/components/dashboard/controls";
 import { EventsTimeline } from "@/components/dashboard/events-timeline";
 import { LiveDot } from "@/components/dashboard/live-dot";
 import { MarketCard } from "@/components/dashboard/market-card";
 import { OpsStrip } from "@/components/dashboard/ops-strip";
 import { PriceChart } from "@/components/dashboard/price-chart";
 import { RecentTable } from "@/components/dashboard/recent-table";
+import { useApp } from "@/components/providers";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { fmtClock } from "@/lib/format";
 
 export default function DashboardPage() {
   const { snapshot, connected } = useSnapshot();
+  const { t } = useApp();
   const [clock, setClock] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -32,24 +35,25 @@ export default function DashboardPage() {
             <span className="label">Binance Ops</span>
           </div>
           <h1 className="mt-1 font-serif text-4xl italic tracking-tight text-foreground">
-            Realtime Trade Collection
+            {t("header.title")}
           </h1>
         </div>
 
         <div className="flex items-center gap-5">
           <div className="text-right">
-            <div className="label">Stream</div>
+            <div className="label">{t("header.stream")}</div>
             <div className="mt-1 flex items-center justify-end gap-2 text-sm">
               <LiveDot live={connected} />
               <span className={connected ? "text-[hsl(var(--success))]" : "text-[hsl(var(--danger))]"}>
-                {connected ? "Connected" : "Reconnecting"}
+                {connected ? t("header.connected") : t("header.reconnecting")}
               </span>
             </div>
           </div>
           <div className="text-right">
-            <div className="label">Local Time</div>
+            <div className="label">{t("header.localTime")}</div>
             <div className="tnum mt-1 text-sm text-foreground">{fmtClock(clock)}</div>
           </div>
+          <Controls />
         </div>
       </header>
 
@@ -86,8 +90,7 @@ export default function DashboardPage() {
           </section>
 
           <footer className="pt-4 text-center text-[11px] text-muted-foreground">
-            Data collected from Binance public market streams · updated{" "}
-            {fmtClock(snapshot.ts)} · SSE push @ 1s
+            {t("footer.text", { time: fmtClock(snapshot.ts) })}
           </footer>
         </div>
       )}
@@ -96,12 +99,13 @@ export default function DashboardPage() {
 }
 
 function LoadingState() {
+  const { t } = useApp();
   return (
     <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
       <LiveDot live />
-      <p className="font-serif text-xl italic">Waiting for the first snapshot…</p>
+      <p className="font-serif text-xl italic">{t("loading.title")}</p>
       <p className="text-xs">
-        Make sure the collector is running (<code>npm run dev</code>).
+        {t("loading.hint")} (<code>npm run dev</code>).
       </p>
     </div>
   );
