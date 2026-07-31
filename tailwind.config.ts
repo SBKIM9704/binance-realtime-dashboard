@@ -41,9 +41,10 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        sans: ['"Pretendard Variable"', "Pretendard", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
-        serif: ["var(--font-serif)", "Georgia", "serif"],
+        // "serif" retained as an alias so any leftover font-serif still renders Korean.
+        serif: ['"Pretendard Variable"', "Pretendard", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       keyframes: {
         "pulse-dot": {

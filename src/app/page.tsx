@@ -35,7 +35,7 @@ export default function DashboardPage() {
             <span className="h-3 w-px bg-border" />
             <span className="label">Binance Ops</span>
           </div>
-          <h1 className="mt-1 font-serif text-4xl italic tracking-tight text-foreground">
+          <h1 className="mt-1 font-sans font-semibold text-4xl tracking-tight text-foreground">
             {t("header.title")}
           </h1>
         </div>
@@ -105,7 +105,7 @@ function LoadingState() {
   return (
     <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
       <LiveDot live />
-      <p className="font-serif text-xl italic">{t("loading.title")}</p>
+      <p className="font-sans font-semibold text-xl">{t("loading.title")}</p>
       <p className="text-xs">
         {t("loading.hint")} (<code>npm run dev</code>).
       </p>

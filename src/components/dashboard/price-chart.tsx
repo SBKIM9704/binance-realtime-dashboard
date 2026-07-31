@@ -51,7 +51,7 @@ export function PriceChart({ snapshot }: { snapshot: DashboardSnapshot }) {
       <div className="flex items-center justify-between border-b border-border p-4">
         <div>
           <div className="label">{t("chart.title")}</div>
-          <div className="font-serif text-lg italic text-foreground">{t("chart.subtitle")}</div>
+          <div className="font-sans font-semibold text-lg text-foreground">{t("chart.subtitle")}</div>
         </div>
         <div className="flex gap-1">
           {symbols.map((s) => (

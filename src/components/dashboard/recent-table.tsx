@@ -36,7 +36,7 @@ export function RecentTable({ symbols, refreshKey }: { symbols: string[]; refres
       <div className="flex items-center justify-between border-b border-border p-4">
         <div>
           <div className="label">{t("table.title")}</div>
-          <div className="font-serif text-lg italic text-foreground">{t("table.subtitle")}</div>
+          <div className="font-sans font-semibold text-lg text-foreground">{t("table.subtitle")}</div>
         </div>
         <div className="flex gap-1">
           {symbols.map((s) => (

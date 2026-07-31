@@ -28,7 +28,7 @@ export function Diagnostics({ snapshot }: { snapshot: DashboardSnapshot }) {
           className={cn("text-muted-foreground transition-transform", open && "rotate-180")}
         />
         <div>
-          <div className="font-serif text-lg italic leading-none text-foreground">
+          <div className="font-sans font-semibold text-lg leading-none text-foreground">
             {t("diagnostics.title")}
           </div>
           <div className="label mt-1">{t("diagnostics.hint")}</div>
