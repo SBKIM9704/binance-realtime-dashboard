@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Operations-terminal palette — warm near-black charcoal with an amber signal accent. */
+    --background: 30 7% 6%;
+    --foreground: 40 18% 90%;
+
+    --card: 30 6% 9%;
+    --card-foreground: 40 18% 90%;
+
+    --primary: 45 96% 56%; /* amber signal */
+    --primary-foreground: 30 30% 8%;
+
+    --secondary: 30 5% 14%;
+    --secondary-foreground: 40 14% 82%;
+
+    --muted: 30 5% 13%;
+    --muted-foreground: 40 6% 52%;
+
+    --accent: 30 6% 16%;
+    --accent-foreground: 40 18% 90%;
+
+    --border: 38 7% 16%;
+    --input: 38 7% 18%;
+    --ring: 45 96% 56%;
+
+    --success: 152 58% 46%;
+    --danger: 2 74% 60%;
+    --warning: 38 92% 56%;
+    --flash: 45 96% 56%;
+
+    --radius: 0.375rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "tnum" 1, "cv01" 1;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(140% 90% at 100% 0%, hsl(45 60% 12% / 0.16) 0%, transparent 42%),
+      radial-gradient(120% 90% at 0% 100%, hsl(200 40% 14% / 0.12) 0%, transparent 45%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 30px,
+        hsl(40 10% 60% / 0.015) 30px 31px
+      );
+    background-attachment: fixed;
+  }
+
+  /* Tabular numerals for all data readouts. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Thin uppercase section labels. */
+  .label {
+    @apply text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+  }
+}
+
+/* Custom scrollbar for the terminal feel. */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}

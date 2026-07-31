@@ -1,0 +1,8 @@
+/** Tiny timestamped logger for the collector process. */
+export function log(...args: unknown[]): void {
+  console.log(new Date().toISOString(), ...args);
+}
+
+export function logError(...args: unknown[]): void {
+  console.error(new Date().toISOString(), ...args);
+}
