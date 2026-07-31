@@ -13,6 +13,16 @@ const schema = z.object({
   RECONCILE_INTERVAL_MS: z.coerce.number().positive().default(60_000),
   RECONCILE_WINDOW_MS: z.coerce.number().positive().default(6 * 60 * 60 * 1000),
   DB_PATH: z.string().default("./data/market.db"),
+
+  // --- REST rate-limit safeguards ---
+  // Delay inserted between paginated backfill requests so large backfills never burst.
+  REST_THROTTLE_MS: z.coerce.number().nonnegative().default(250),
+  // Max retries for a single REST call on 429/418/5xx before giving up.
+  REST_MAX_RETRIES: z.coerce.number().nonnegative().default(4),
+  // Binance IP weight budget per minute (REQUEST_WEIGHT). Real value is 6000.
+  REST_WEIGHT_LIMIT: z.coerce.number().positive().default(6000),
+  // Soft threshold (fraction of the budget) at which we proactively pace requests.
+  REST_WEIGHT_SOFT_PCT: z.coerce.number().min(0.1).max(1).default(0.8),
 });
 
 const parsed = schema.parse(process.env);
