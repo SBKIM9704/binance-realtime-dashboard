@@ -47,6 +47,15 @@ export const dict = {
     "system.rateLimited": "429 제한",
     "system.serverErr": "5xx 에러",
 
+    "ribbon.status": "상태",
+    "ribbon.healthy": "정상",
+    "ribbon.degraded": "주의",
+    "ribbon.critical": "위험",
+    "diagnostics.title": "상세 진단",
+    "diagnostics.hint": "시스템 · 파이프라인 상세 지표",
+    "diagnostics.show": "펼치기",
+    "diagnostics.hide": "접기",
+
     "market.volume": "24h 거래량 (기초자산)",
     "market.volatility": "변동성 (30m σ)",
     "market.bid": "매수호가",
@@ -124,6 +133,15 @@ export const dict = {
     "system.retry": "REST Retry",
     "system.rateLimited": "429 Limited",
     "system.serverErr": "5xx Errors",
+
+    "ribbon.status": "Status",
+    "ribbon.healthy": "Healthy",
+    "ribbon.degraded": "Degraded",
+    "ribbon.critical": "Critical",
+    "diagnostics.title": "Diagnostics",
+    "diagnostics.hint": "System & pipeline detail",
+    "diagnostics.show": "Show",
+    "diagnostics.hide": "Hide",
 
     "market.volume": "24h Volume (base)",
     "market.volatility": "Volatility (30m σ)",
