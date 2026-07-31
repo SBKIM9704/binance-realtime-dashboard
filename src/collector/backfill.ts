@@ -1,6 +1,6 @@
-import { fetchKlines } from "../lib/binance";
+import { fetchKlines, sleep } from "../lib/binance";
 import { config } from "../lib/config";
-import { getMaxOpenTime, upsertKlines } from "../lib/repositories/klines";
+import { getMaxOpenTime, getMinOpenTime, upsertKlines } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
 import { log } from "./logger";
 
@@ -39,6 +39,10 @@ export async function fetchAndStoreRange(
 
     // Fewer than a full page means we've reached the end of available history.
     if (batch.length < REST_PAGE_LIMIT) break;
+
+    // Throttle between pages so a large backfill spreads out and never bursts
+    // against the Binance IP weight budget.
+    if (config.REST_THROTTLE_MS > 0) await sleep(config.REST_THROTTLE_MS);
   }
 
   return written;
@@ -46,20 +50,23 @@ export async function fetchAndStoreRange(
 
 /**
  * Startup / restart backfill for a single symbol. One unified mechanism:
- *   - empty DB   → backfill the last BACKFILL_DAYS days (first-run case)
- *   - existing DB → backfill from the last stored candle to now (downtime gap)
+ *   - history doesn't reach back BACKFILL_DAYS → backfill the full window
+ *     (first run, OR a live WS candle already landed before backfill ran)
+ *   - history reaches back far enough → fill only the gap from the last candle
+ *
+ * We key off the EARLIEST stored candle, not the latest, so a single live candle
+ * that arrived first (live-first ordering) doesn't fool us into "already up to date".
  */
 export async function backfillSymbol(symbol: string): Promise<number> {
   const interval = config.KLINE_INTERVAL;
   const now = Date.now();
+  const desiredStart = now - config.BACKFILL_DAYS * 24 * 60 * 60 * 1000;
   const maxOpen = getMaxOpenTime(symbol, interval);
+  const minOpen = getMinOpenTime(symbol, interval);
 
-  const start =
-    maxOpen !== null
-      ? maxOpen + config.intervalMs
-      : now - config.BACKFILL_DAYS * 24 * 60 * 60 * 1000;
-
-  const reason = maxOpen !== null ? "restart-gap" : "first-run";
+  const needsFullWindow = minOpen === null || minOpen > desiredStart;
+  const start = needsFullWindow ? desiredStart : (maxOpen ?? desiredStart) + config.intervalMs;
+  const reason = needsFullWindow ? "first-run" : "restart-gap";
   addEvent({ ts: now, symbol, type: "backfill_start", detail: reason, count: 0 });
 
   if (start > now) {

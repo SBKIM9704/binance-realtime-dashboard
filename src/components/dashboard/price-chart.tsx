@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { Card } from "@/components/ui/card";
+import { useApp } from "@/components/providers";
 import { fmtCompact, fmtPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DashboardSnapshot } from "@/lib/types";
@@ -35,6 +36,7 @@ function TooltipBox({ active, payload }: { active?: boolean; payload?: { payload
 }
 
 export function PriceChart({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const { t } = useApp();
   const symbols = Object.keys(snapshot.series);
   const [active, setActive] = useState(symbols[0] ?? "");
   const data: Point[] = snapshot.series[active] ?? [];
@@ -45,11 +47,13 @@ export function PriceChart({ snapshot }: { snapshot: DashboardSnapshot }) {
   const pad = (max - min) * 0.08 || 1;
 
   return (
-    <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
-      <div className="flex items-center justify-between border-b border-border p-4">
+    <Card className="flex h-full min-h-[320px] flex-col animate-fade-up" style={{ animationDelay: "120ms" }}>
+      <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
         <div>
-          <div className="label">Price · Volume</div>
-          <div className="font-serif text-lg italic text-foreground">1-minute candles</div>
+          <div className="label">{t("chart.title")}</div>
+          <div className="font-sans font-semibold text-lg text-foreground">
+            {snapshot.interval} {t("chart.candles")}
+          </div>
         </div>
         <div className="flex gap-1">
           {symbols.map((s) => (
@@ -69,7 +73,7 @@ export function PriceChart({ snapshot }: { snapshot: DashboardSnapshot }) {
         </div>
       </div>
 
-      <div className="h-[320px] w-full p-2">
+      <div className="min-h-0 w-full flex-1 p-2">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 12, right: 8, left: 8, bottom: 0 }}>
             <defs>

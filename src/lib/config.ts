@@ -8,17 +8,30 @@ const schema = z.object({
   BINANCE_REST_BASE: z.string().url().default("https://api.binance.com"),
   BINANCE_WS_BASE: z.string().default("wss://stream.binance.com:9443"),
   SYMBOLS: z.string().default("BTCUSDT,ETHUSDT"),
-  KLINE_INTERVAL: z.string().default("1m"),
+  KLINE_INTERVAL: z.string().default("1s"),
   BACKFILL_DAYS: z.coerce.number().positive().default(3),
   RECONCILE_INTERVAL_MS: z.coerce.number().positive().default(60_000),
-  RECONCILE_WINDOW_MS: z.coerce.number().positive().default(6 * 60 * 60 * 1000),
+  RECONCILE_WINDOW_MS: z.coerce.number().positive().default(30 * 60 * 1000),
   DB_PATH: z.string().default("./data/market.db"),
+  // Delete klines/events older than this many days (caps DB growth at 1s granularity).
+  RETENTION_DAYS: z.coerce.number().positive().default(7),
+
+  // --- REST rate-limit safeguards ---
+  // Delay inserted between paginated backfill requests so large backfills never burst.
+  REST_THROTTLE_MS: z.coerce.number().nonnegative().default(250),
+  // Max retries for a single REST call on 429/418/5xx before giving up.
+  REST_MAX_RETRIES: z.coerce.number().nonnegative().default(4),
+  // Binance IP weight budget per minute (REQUEST_WEIGHT). Real value is 6000.
+  REST_WEIGHT_LIMIT: z.coerce.number().positive().default(6000),
+  // Soft threshold (fraction of the budget) at which we proactively pace requests.
+  REST_WEIGHT_SOFT_PCT: z.coerce.number().min(0.1).max(1).default(0.8),
 });
 
 const parsed = schema.parse(process.env);
 
 /** Milliseconds per supported kline interval. */
 const INTERVAL_TO_MS: Record<string, number> = {
+  "1s": 1_000,
   "1m": 60_000,
   "3m": 180_000,
   "5m": 300_000,

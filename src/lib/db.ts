@@ -75,5 +75,43 @@ function migrate(db: DB): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_ts ON pipeline_events (ts DESC);
+
+    -- Single-row (id = 1) snapshot of the collector process + REST usage.
+    CREATE TABLE IF NOT EXISTS system_metrics (
+      id                 INTEGER PRIMARY KEY CHECK (id = 1),
+      cpu_pct            REAL    NOT NULL DEFAULT 0,
+      rss_bytes          INTEGER NOT NULL DEFAULT 0,
+      uptime_sec         REAL    NOT NULL DEFAULT 0,
+      rest_calls_total   INTEGER NOT NULL DEFAULT 0,
+      rest_calls_rate    REAL    NOT NULL DEFAULT 0,
+      rest_retry_count   INTEGER NOT NULL DEFAULT 0,
+      rate_limited_count INTEGER NOT NULL DEFAULT 0,
+      server_error_count INTEGER NOT NULL DEFAULT 0,
+      used_weight        INTEGER NOT NULL DEFAULT 0,
+      weight_limit       INTEGER NOT NULL DEFAULT 6000,
+      updated_at         INTEGER NOT NULL DEFAULT 0
+    );
+
+    INSERT OR IGNORE INTO system_metrics (id) VALUES (1);
   `);
+
+  // Additive migrations for pipeline_status columns introduced after v0.1.
+  ensureColumns(db, "pipeline_status", {
+    message_count: "INTEGER NOT NULL DEFAULT 0",
+    ws_msg_rate: "REAL NOT NULL DEFAULT 0",
+    reconnect_count: "INTEGER NOT NULL DEFAULT 0",
+    best_bid: "REAL",
+    best_ask: "REAL",
+    ticker_updated_at: "INTEGER",
+  });
+}
+
+/** Add any missing columns to an existing table (idempotent, safe on old DBs). */
+function ensureColumns(db: DB, table: string, columns: Record<string, string>): void {
+  const existing = new Set(
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name),
+  );
+  for (const [name, def] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${def}`);
+  }
 }

@@ -12,6 +12,12 @@ interface StatusRow {
   error_count: number;
   reconcile_last_run: number | null;
   updated_at: number;
+  message_count: number;
+  ws_msg_rate: number;
+  reconnect_count: number;
+  best_bid: number | null;
+  best_ask: number | null;
+  ticker_updated_at: number | null;
 }
 
 function rowToStatus(r: StatusRow): PipelineStatus {
@@ -26,6 +32,12 @@ function rowToStatus(r: StatusRow): PipelineStatus {
     errorCount: r.error_count,
     reconcileLastRun: r.reconcile_last_run,
     updatedAt: r.updated_at,
+    messageCount: r.message_count,
+    wsMsgRate: r.ws_msg_rate,
+    reconnectCount: r.reconnect_count,
+    bestBid: r.best_bid,
+    bestAsk: r.best_ask,
+    tickerUpdatedAt: r.ticker_updated_at,
   };
 }
 
@@ -48,6 +60,12 @@ const COLUMN_MAP: Record<string, string> = {
   gapsFilled: "gaps_filled",
   errorCount: "error_count",
   reconcileLastRun: "reconcile_last_run",
+  messageCount: "message_count",
+  wsMsgRate: "ws_msg_rate",
+  reconnectCount: "reconnect_count",
+  bestBid: "best_bid",
+  bestAsk: "best_ask",
+  tickerUpdatedAt: "ticker_updated_at",
 };
 
 /** Patch selected status columns for a symbol. Always bumps updated_at. */
@@ -69,7 +87,12 @@ export function updateStatus(symbol: string, patch: Partial<Omit<PipelineStatus,
 /** Atomically increment a counter column (e.g. gaps_filled, error_count). */
 export function incrementStatus(
   symbol: string,
-  column: "backfilledCount" | "gapsDetected" | "gapsFilled" | "errorCount",
+  column:
+    | "backfilledCount"
+    | "gapsDetected"
+    | "gapsFilled"
+    | "errorCount"
+    | "reconnectCount",
   by = 1,
 ): void {
   const col = COLUMN_MAP[column];
@@ -100,4 +123,22 @@ export function getRecentEvents(limit: number): PipelineEvent[] {
   return getDb()
     .prepare("SELECT * FROM pipeline_events ORDER BY ts DESC, id DESC LIMIT ?")
     .all(limit) as PipelineEvent[];
+}
+
+/** Delete pipeline events older than `cutoff` (epoch ms). Returns rows removed. */
+export function pruneEventsBefore(cutoff: number): number {
+  return getDb().prepare("DELETE FROM pipeline_events WHERE ts < ?").run(cutoff).changes;
+}
+
+/** Count events of the given types since `since` (epoch ms) — used for error rate. */
+export function getEventCountSince(types: string[], since: number): number {
+  if (types.length === 0) return 0;
+  const placeholders = types.map(() => "?").join(",");
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS c FROM pipeline_events
+       WHERE ts >= ? AND type IN (${placeholders})`,
+    )
+    .get(since, ...types) as { c: number };
+  return row.c;
 }
