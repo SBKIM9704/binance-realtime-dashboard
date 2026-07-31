@@ -23,7 +23,7 @@ export function EventsTimeline({ events }: { events: PipelineEvent[] }) {
     <Card className="animate-fade-up" style={{ animationDelay: "200ms" }}>
       <div className="border-b border-border p-4">
         <div className="label">{t("events.title")}</div>
-        <div className="font-serif text-lg italic text-foreground">{t("events.subtitle")}</div>
+        <div className="font-sans font-semibold text-lg text-foreground">{t("events.subtitle")}</div>
       </div>
       <div className="max-h-[300px] overflow-auto">
         {events.length === 0 ? (

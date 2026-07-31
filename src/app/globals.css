@@ -95,8 +95,9 @@
       );
   }
 
-  /* Tabular numerals for all data readouts. */
+  /* Numeric/data readouts use the mono font with tabular figures. */
   .tnum {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }

@@ -46,7 +46,7 @@ export function MarketCard({
       <div className="flex items-start justify-between p-5 pb-3">
         <div>
           <div className="flex items-baseline gap-2">
-            <span className="font-serif text-2xl italic leading-none text-foreground">
+            <span className="font-sans font-semibold text-2xl leading-none text-foreground">
               {symbol.replace("USDT", "")}
             </span>
             <span className="label">/ USDT · {assetName}</span>
