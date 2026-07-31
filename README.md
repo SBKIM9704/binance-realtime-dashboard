@@ -58,7 +58,10 @@
 | 🖥️ | **System 지표** | 수집기 프로세스 CPU/RAM/uptime + REST calls/Weight(x/6000)·429·5xx |
 | 🚦 | **임계값 색상 코딩** | Lag·Recovery·Weight·Error Rate를 초록/노랑/빨강으로 즉시 판단 |
 | 📖 | **호가/심화 시세** | `@bookTicker` 실시간 Bid/Ask·Spread + VWAP·24h High/Low |
-| 🖥️ | **실시간 UI** | SSE(`/api/stream`)로 1초 주기 스냅샷 push |
+| 🖥️ | **실시간 UI** | SSE(`/api/stream`)로 1초 주기 스냅샷 push — 스냅샷은 **매초 1회만 계산해 전 탭이 공유**(탭 수와 무관) |
+| ⏱️ | **1초봉 수집** | `kline_1s`로 초 단위 수집·저장(설정으로 `1m` 등 전환). 24h 지표는 **SQL 집계**로 대용량에도 가볍게 |
+| 🧍 | **클라이언트 독립 수집** | 수집기는 브라우저와 분리된 **상주 프로세스** → 페이지를 몇 개 열든 지속 축적 |
+| ♻️ | **보존 정책** | `RETENTION_DAYS` 지난 캔들/이벤트 자동 정리로 저장량 상한 |
 | 🌗 | **다크/라이트 테마** | 헤더 토글로 전환 (기본 다크), `localStorage` 저장 + 새로고침 시 플리커 없음 |
 | 🌐 | **한/영 언어팩** | 헤더 토글로 전환 (기본 한국어), i18n 라이브러리 없이 경량 컨텍스트로 구현 |
 | 💾 | **영속성** | SQLite(WAL) 파일 저장 → 재시작해도 데이터 유지, 별도 DB 서버/도커 불필요 |
@@ -147,10 +150,11 @@ npm run dev
 | `BINANCE_REST_BASE` | `https://api.binance.com` | REST 베이스 URL |
 | `BINANCE_WS_BASE` | `wss://stream.binance.com:9443` | WebSocket 베이스 URL |
 | `SYMBOLS` | `BTCUSDT,ETHUSDT` | 수집 종목 (쉼표 구분) |
-| `KLINE_INTERVAL` | `1m` | 캔들 간격 |
+| `KLINE_INTERVAL` | `1s` | 캔들 간격 (`1s`·`1m`·`3m`·`5m`·`15m`·`1h`) |
 | `BACKFILL_DAYS` | `3` | 최초 실행 시 백필할 기간(일) |
 | `RECONCILE_INTERVAL_MS` | `60000` | reconciler 실행 주기(ms) |
-| `RECONCILE_WINDOW_MS` | `21600000` | 결측 스캔 윈도우(ms, 기본 6시간) |
+| `RECONCILE_WINDOW_MS` | `1800000` | 결측 스캔 윈도우(ms, 기본 30분) |
+| `RETENTION_DAYS` | `7` | 이보다 오래된 캔들/이벤트 정리(1s 저장량 상한) |
 | `DB_PATH` | `./data/market.db` | SQLite 파일 경로 |
 | `REST_THROTTLE_MS` | `250` | 백필 페이지 요청 사이 지연(ms) — 버스트 방지 |
 | `REST_MAX_RETRIES` | `4` | REST 호출당 최대 재시도(429/418/5xx) |

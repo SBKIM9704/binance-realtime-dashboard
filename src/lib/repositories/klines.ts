@@ -76,6 +76,13 @@ export function getMaxOpenTime(symbol: string, interval: string): number | null 
   return row?.t ?? null;
 }
 
+export function getMinOpenTime(symbol: string, interval: string): number | null {
+  const row = getDb()
+    .prepare("SELECT MIN(open_time) AS t FROM klines WHERE symbol = ? AND interval = ?")
+    .get(symbol, interval) as { t: number | null };
+  return row?.t ?? null;
+}
+
 export function countKlines(symbol: string, interval: string): number {
   const row = getDb()
     .prepare("SELECT COUNT(*) AS c FROM klines WHERE symbol = ? AND interval = ?")
@@ -92,6 +99,58 @@ export function getRecentKlines(symbol: string, interval: string, limit: number)
     )
     .all(symbol, interval, limit) as KlineRow[];
   return rows.map(rowToKline).reverse();
+}
+
+/** 24h rollup computed in SQLite (MIN/MAX/SUM) — avoids pulling every row into JS. */
+export interface Stats24h {
+  firstOpen: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number;
+  quoteVolume: number;
+  count: number;
+}
+
+export function get24hStats(symbol: string, interval: string, since: number): Stats24h {
+  const db = getDb();
+  const agg = db
+    .prepare(
+      `SELECT MAX(high) AS high, MIN(low) AS low,
+              COALESCE(SUM(volume), 0) AS volume,
+              COALESCE(SUM(quote_volume), 0) AS quote_volume,
+              COUNT(*) AS count
+       FROM klines WHERE symbol = ? AND interval = ? AND open_time >= ?`,
+    )
+    .get(symbol, interval, since) as {
+    high: number | null;
+    low: number | null;
+    volume: number;
+    quote_volume: number;
+    count: number;
+  };
+  const first = db
+    .prepare(
+      `SELECT open FROM klines WHERE symbol = ? AND interval = ? AND open_time >= ?
+       ORDER BY open_time ASC LIMIT 1`,
+    )
+    .get(symbol, interval, since) as { open: number } | undefined;
+
+  return {
+    firstOpen: first?.open ?? null,
+    high: agg.high,
+    low: agg.low,
+    volume: agg.volume,
+    quoteVolume: agg.quote_volume,
+    count: agg.count,
+  };
+}
+
+/** Delete klines older than `cutoff` (epoch ms) for an interval. Returns rows removed. */
+export function pruneKlinesBefore(interval: string, cutoff: number): number {
+  const info = getDb()
+    .prepare("DELETE FROM klines WHERE interval = ? AND open_time < ?")
+    .run(interval, cutoff);
+  return info.changes;
 }
 
 /** Existing open_times within [start, end], ascending. Used for gap detection. */

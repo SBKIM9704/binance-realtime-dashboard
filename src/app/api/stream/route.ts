@@ -1,4 +1,4 @@
-import { buildSnapshot } from "@/lib/metrics";
+import { getSnapshot } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export function GET(req: Request) {
     start(controller) {
       const send = () => {
         try {
-          const payload = JSON.stringify(buildSnapshot());
+          const payload = JSON.stringify(getSnapshot());
           controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
         } catch {
           // Snapshot build failed transiently — skip this tick.

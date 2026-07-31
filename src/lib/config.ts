@@ -8,11 +8,13 @@ const schema = z.object({
   BINANCE_REST_BASE: z.string().url().default("https://api.binance.com"),
   BINANCE_WS_BASE: z.string().default("wss://stream.binance.com:9443"),
   SYMBOLS: z.string().default("BTCUSDT,ETHUSDT"),
-  KLINE_INTERVAL: z.string().default("1m"),
+  KLINE_INTERVAL: z.string().default("1s"),
   BACKFILL_DAYS: z.coerce.number().positive().default(3),
   RECONCILE_INTERVAL_MS: z.coerce.number().positive().default(60_000),
-  RECONCILE_WINDOW_MS: z.coerce.number().positive().default(6 * 60 * 60 * 1000),
+  RECONCILE_WINDOW_MS: z.coerce.number().positive().default(30 * 60 * 1000),
   DB_PATH: z.string().default("./data/market.db"),
+  // Delete klines/events older than this many days (caps DB growth at 1s granularity).
+  RETENTION_DAYS: z.coerce.number().positive().default(7),
 
   // --- REST rate-limit safeguards ---
   // Delay inserted between paginated backfill requests so large backfills never burst.
@@ -29,6 +31,7 @@ const parsed = schema.parse(process.env);
 
 /** Milliseconds per supported kline interval. */
 const INTERVAL_TO_MS: Record<string, number> = {
+  "1s": 1_000,
   "1m": 60_000,
   "3m": 180_000,
   "5m": 300_000,

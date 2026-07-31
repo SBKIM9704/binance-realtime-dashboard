@@ -57,7 +57,7 @@ export const dict = {
     "diagnostics.hide": "접기",
 
     "market.volume": "24시간 거래량",
-    "market.volatility": "변동성 (30분)",
+    "market.volatility": "변동성",
     "market.bid": "매수호가",
     "market.ask": "매도호가",
     "market.spread": "스프레드",
@@ -69,6 +69,7 @@ export const dict = {
 
     "chart.title": "가격 · 거래량",
     "chart.subtitle": "1분봉",
+    "chart.candles": "캔들",
 
     "events.title": "이벤트 로그",
     "events.subtitle": "수집 이벤트",
@@ -144,7 +145,7 @@ export const dict = {
     "diagnostics.hide": "Hide",
 
     "market.volume": "24h Volume",
-    "market.volatility": "Volatility (30m)",
+    "market.volatility": "Volatility",
     "market.bid": "Bid",
     "market.ask": "Ask",
     "market.spread": "Spread",
@@ -156,6 +157,7 @@ export const dict = {
 
     "chart.title": "Price · Volume",
     "chart.subtitle": "1m Candles",
+    "chart.candles": "candles",
 
     "events.title": "Event Log",
     "events.subtitle": "Pipeline events",

@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { deriveMarketMetrics } from "./metrics";
+import { assembleMarketMetrics, stddev, volatilityOf } from "./metrics";
+import type { Stats24h } from "./repositories/klines";
 import type { Kline } from "./types";
 
-/** Build a minimal kline; only OHLCV fields matter for the metrics under test. */
-function makeKline(i: number, o: number, c: number, v: number): Kline {
-  const openTime = i * 60_000;
+function makeKline(i: number, close: number): Kline {
+  const openTime = i * 1000;
   return {
     symbol: "BTCUSDT",
-    interval: "1m",
+    interval: "1s",
     openTime,
-    open: o,
-    high: Math.max(o, c),
-    low: Math.min(o, c),
-    close: c,
-    volume: v,
-    closeTime: openTime + 59_999,
-    quoteVolume: c * v,
+    open: close,
+    high: close,
+    low: close,
+    close,
+    volume: 1,
+    closeTime: openTime + 999,
+    quoteVolume: close,
     trades: 0,
     takerBuyBase: 0,
     takerBuyQuote: 0,
@@ -23,64 +23,58 @@ function makeKline(i: number, o: number, c: number, v: number): Kline {
   };
 }
 
-describe("deriveMarketMetrics", () => {
-  it("returns nulls for an empty series", () => {
-    const m = deriveMarketMetrics("BTCUSDT", []);
-    expect(m).toEqual({
-      symbol: "BTCUSDT",
-      lastPrice: null,
-      changePct24h: null,
-      volume24h: null,
-      volatility: null,
-      vwap24h: null,
-      high24h: null,
-      low24h: null,
-      bid: null,
-      ask: null,
-      spreadPct: null,
-      lastCandle: null,
-    });
+describe("stddev", () => {
+  it("returns null for fewer than 2 values", () => {
+    expect(stddev([])).toBeNull();
+    expect(stddev([5])).toBeNull();
+  });
+  it("computes sample standard deviation", () => {
+    expect(stddev([2, 4, 4, 4, 5, 5, 7, 9])).toBeCloseTo(2.138, 3);
+  });
+});
+
+describe("volatilityOf", () => {
+  it("is zero for constant-ratio growth (equal log returns)", () => {
+    expect(volatilityOf([100, 110, 121])).toBeCloseTo(0, 10);
+  });
+  it("is null with too few points", () => {
+    expect(volatilityOf([100])).toBeNull();
+  });
+});
+
+describe("assembleMarketMetrics", () => {
+  const stats: Stats24h = {
+    firstOpen: 100,
+    high: 121,
+    low: 100,
+    volume: 10,
+    quoteVolume: 1137,
+    count: 3,
+  };
+
+  it("returns nulls for an empty tail", () => {
+    const m = assembleMarketMetrics("BTCUSDT", { ...stats, count: 0 }, []);
+    expect(m.lastPrice).toBeNull();
+    expect(m.high24h).toBeNull();
+    expect(m.vwap24h).toBeNull();
+    expect(m.lastCandle).toBeNull();
   });
 
-  it("computes last price, 24h change and total volume", () => {
-    const klines = [
-      makeKline(0, 100, 110, 5),
-      makeKline(1, 110, 115, 3),
-      makeKline(2, 115, 121, 2),
-    ];
-    const m = deriveMarketMetrics("BTCUSDT", klines);
+  it("merges SQL 24h stats with the recent tail", () => {
+    const tail = [makeKline(0, 110), makeKline(1, 115), makeKline(2, 121)];
+    const m = assembleMarketMetrics("BTCUSDT", stats, tail);
     expect(m.lastPrice).toBe(121);
-    // (121 - first.open 100) / 100 * 100
-    expect(m.changePct24h).toBeCloseTo(21, 6);
+    expect(m.changePct24h).toBeCloseTo(21, 6); // (121 - 100) / 100 * 100
     expect(m.volume24h).toBe(10);
-    expect(m.lastCandle?.openTime).toBe(2 * 60_000);
-    // 24h high/low across candles (high=max(o,c), low=min(o,c))
+    expect(m.vwap24h).toBeCloseTo(113.7, 6); // 1137 / 10
     expect(m.high24h).toBe(121);
     expect(m.low24h).toBe(100);
-    // VWAP = Σ(quoteVolume) / Σ(volume) = (550+345+242) / 10
-    expect(m.vwap24h).toBeCloseTo(113.7, 6);
+    expect(m.volatility).not.toBeNull();
   });
 
-  it("computes zero volatility for a constant-growth series (equal log returns)", () => {
-    // closes 100 → 110 → 121: ln(110/100) == ln(121/110), so stddev of returns is 0
-    const klines = [
-      makeKline(0, 100, 100, 1),
-      makeKline(1, 100, 110, 1),
-      makeKline(2, 110, 121, 1),
-    ];
-    const m = deriveMarketMetrics("BTCUSDT", klines);
-    expect(m.volatility).toBeCloseTo(0, 10);
-  });
-
-  it("returns null volatility when there are too few points", () => {
-    const m = deriveMarketMetrics("BTCUSDT", [makeKline(0, 100, 105, 1)]);
-    expect(m.lastPrice).toBe(105);
-    expect(m.changePct24h).toBeCloseTo(5, 6);
-    expect(m.volatility).toBeNull();
-  });
-
-  it("guards against divide-by-zero when the opening price is 0", () => {
-    const m = deriveMarketMetrics("BTCUSDT", [makeKline(0, 0, 105, 1)]);
+  it("guards 24h change when the opening price is missing", () => {
+    const tail = [makeKline(0, 105)];
+    const m = assembleMarketMetrics("BTCUSDT", { ...stats, firstOpen: null }, tail);
     expect(m.changePct24h).toBeNull();
   });
 });
