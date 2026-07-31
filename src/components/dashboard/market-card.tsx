@@ -43,10 +43,10 @@ export function MarketCard({
       className="grain animate-fade-up overflow-hidden"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between p-5 pb-3">
+      <div className="flex items-start justify-between p-4 pb-2">
         <div>
           <div className="flex items-baseline gap-2">
-            <span className="font-sans font-semibold text-2xl leading-none text-foreground">
+            <span className="font-sans text-xl font-semibold leading-none text-foreground">
               {symbol.replace("USDT", "")}
             </span>
             <span className="label">/ USDT · {assetName}</span>
@@ -55,12 +55,12 @@ export function MarketCard({
           {/* Price hero */}
           <div
             className={cn(
-              "tnum mt-3 text-4xl font-medium tracking-tight transition-colors",
+              "tnum mt-1.5 text-3xl font-medium tracking-tight transition-colors",
               flash === "up" && "text-[hsl(var(--success))]",
               flash === "down" && "text-[hsl(var(--danger))]",
             )}
           >
-            <span className="text-xl text-muted-foreground">$</span>
+            <span className="text-lg text-muted-foreground">$</span>
             {fmtPrice(lastPrice)}
           </div>
 
@@ -86,13 +86,13 @@ export function MarketCard({
         <Sparkline
           data={series}
           width={340}
-          height={44}
+          height={34}
           color={up ? "hsl(var(--success))" : "hsl(var(--danger))"}
         />
       </div>
 
       {/* Compact, low-contrast secondary metrics */}
-      <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-3 border-t border-border px-5 py-4">
+      <div className="mt-2 grid grid-cols-3 gap-x-4 gap-y-2 border-t border-border px-4 py-3">
         <MiniStat label={t("market.high24h")} value={fmtPrice(high24h)} />
         <MiniStat label={t("market.low24h")} value={fmtPrice(low24h)} />
         <MiniStat label={t("market.vwap")} value={fmtPrice(vwap24h)} />
