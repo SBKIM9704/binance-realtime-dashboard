@@ -15,7 +15,7 @@ function makeKline(i: number, o: number, c: number, v: number): Kline {
     close: c,
     volume: v,
     closeTime: openTime + 59_999,
-    quoteVolume: 0,
+    quoteVolume: c * v,
     trades: 0,
     takerBuyBase: 0,
     takerBuyQuote: 0,
@@ -32,6 +32,12 @@ describe("deriveMarketMetrics", () => {
       changePct24h: null,
       volume24h: null,
       volatility: null,
+      vwap24h: null,
+      high24h: null,
+      low24h: null,
+      bid: null,
+      ask: null,
+      spreadPct: null,
       lastCandle: null,
     });
   });
@@ -48,6 +54,11 @@ describe("deriveMarketMetrics", () => {
     expect(m.changePct24h).toBeCloseTo(21, 6);
     expect(m.volume24h).toBe(10);
     expect(m.lastCandle?.openTime).toBe(2 * 60_000);
+    // 24h high/low across candles (high=max(o,c), low=min(o,c))
+    expect(m.high24h).toBe(121);
+    expect(m.low24h).toBe(100);
+    // VWAP = Σ(quoteVolume) / Σ(volume) = (550+345+242) / 10
+    expect(m.vwap24h).toBeCloseTo(113.7, 6);
   });
 
   it("computes zero volatility for a constant-growth series (equal log returns)", () => {
