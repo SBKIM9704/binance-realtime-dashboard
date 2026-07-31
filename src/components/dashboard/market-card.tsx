@@ -19,6 +19,7 @@ export function MarketCard({
   delay?: number;
 }) {
   const { symbol, lastPrice, changePct24h, volume24h, volatility } = metrics;
+  const { vwap24h, high24h, low24h, bid, ask, spreadPct } = metrics;
   const up = (changePct24h ?? 0) >= 0;
   const { t } = useApp();
   const rawName = t(`asset.${symbol}` as TKey);
@@ -85,7 +86,16 @@ export function MarketCard({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-px border-t border-border bg-border">
+      <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-3">
+        <Stat label={t("market.bid")} value={fmtPrice(bid)} />
+        <Stat label={t("market.ask")} value={fmtPrice(ask)} />
+        <Stat
+          label={t("market.spread")}
+          value={spreadPct != null ? `${spreadPct.toFixed(3)}%` : "—"}
+        />
+        <Stat label={t("market.vwap")} value={fmtPrice(vwap24h)} />
+        <Stat label={t("market.high24h")} value={fmtPrice(high24h)} />
+        <Stat label={t("market.low24h")} value={fmtPrice(low24h)} />
         <Stat label={t("market.volume")} value={fmtCompact(volume24h)} />
         <Stat
           label={t("market.volatility")}

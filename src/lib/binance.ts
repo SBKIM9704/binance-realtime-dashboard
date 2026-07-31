@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { incrementSystem, setUsedWeight } from "./repositories/system";
 import type { Kline } from "./types";
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -20,6 +21,15 @@ function backoffMs(attempt: number): number {
   return Math.min(1000 * 2 ** attempt, 30_000);
 }
 
+/** Best-effort REST-usage bookkeeping; never let metrics writes break a fetch. */
+function recordUsage(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    /* DB unavailable — ignore */
+  }
+}
+
 export async function binanceFetch(url: URL | string): Promise<Response> {
   const maxRetries = config.REST_MAX_RETRIES;
   const softLimit = config.REST_WEIGHT_LIMIT * config.REST_WEIGHT_SOFT_PCT;
@@ -30,6 +40,8 @@ export async function binanceFetch(url: URL | string): Promise<Response> {
       await sleep(windowResetAt - Date.now());
     }
 
+    if (attempt > 0) recordUsage(() => incrementSystem("rest_retry_count"));
+    recordUsage(() => incrementSystem("rest_calls_total"));
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 
     // Track remaining weight budget from the response headers.
@@ -37,9 +49,11 @@ export async function binanceFetch(url: URL | string): Promise<Response> {
     if (!Number.isNaN(w) && w > 0) {
       usedWeight = w;
       windowResetAt = Date.now() + 60_000;
+      recordUsage(() => setUsedWeight(w));
     }
 
     if (res.status === 429 || res.status === 418) {
+      recordUsage(() => incrementSystem("rate_limited_count"));
       // Drain the body so the socket can be reused.
       await res.text().catch(() => "");
       const retryAfter = Number(res.headers.get("retry-after"));
@@ -54,6 +68,7 @@ export async function binanceFetch(url: URL | string): Promise<Response> {
     }
 
     if (res.status >= 500) {
+      recordUsage(() => incrementSystem("server_error_count"));
       await res.text().catch(() => "");
       if (attempt >= maxRetries) {
         throw new Error(`Binance server error ${res.status}, gave up after ${attempt} retries`);
@@ -156,10 +171,33 @@ interface WsKlineMessage {
   };
 }
 
-/** Build the combined-stream WebSocket URL for the configured symbols. */
+/** Build the combined-stream WebSocket URL: kline + bookTicker per symbol. */
 export function buildStreamUrl(symbols: string[], interval: string): string {
-  const streams = symbols.map((s) => `${s.toLowerCase()}@kline_${interval}`).join("/");
-  return `${config.BINANCE_WS_BASE}/stream?streams=${streams}`;
+  const streams = symbols.flatMap((s) => {
+    const lower = s.toLowerCase();
+    return [`${lower}@kline_${interval}`, `${lower}@bookTicker`];
+  });
+  return `${config.BINANCE_WS_BASE}/stream?streams=${streams.join("/")}`;
+}
+
+/** Best bid/ask from a combined-stream @bookTicker message. */
+export interface BookTicker {
+  symbol: string;
+  bid: number;
+  ask: number;
+}
+
+interface WsBookTickerMessage {
+  stream: string;
+  data: { s: string; b: string; a: string };
+}
+
+/** Parse a raw combined-stream bookTicker message, or null if irrelevant. */
+export function parseWsBookTicker(raw: string): BookTicker | null {
+  const msg = JSON.parse(raw) as Partial<WsBookTickerMessage>;
+  const d = msg.data;
+  if (!d || d.b === undefined || d.a === undefined || !d.s) return null;
+  return { symbol: d.s, bid: Number(d.b), ask: Number(d.a) };
 }
 
 /** Parse a raw combined-stream kline message into a Kline, or null if irrelevant. */

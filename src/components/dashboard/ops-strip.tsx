@@ -1,88 +1,78 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/components/providers";
-import { LiveDot } from "./live-dot";
-import { fmtDuration, fmtInt, fmtTimeAgo } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { fmtClock, fmtDuration, fmtInt, fmtTimeAgo } from "@/lib/format";
+import { errorRateTier, lagTier, msgRateTier, recoveryTier } from "@/lib/thresholds";
 import type { DashboardSnapshot } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { LiveDot } from "./live-dot";
+import { Stat } from "./stat";
 
-type Status = DashboardSnapshot["status"][number];
-
-/** Classify ingestion lag into a health tier. */
-function lagTier(lagMs: number | null): "success" | "warning" | "danger" {
-  if (lagMs == null) return "warning";
-  if (lagMs <= 90_000) return "success";
-  if (lagMs <= 300_000) return "warning";
-  return "danger";
-}
-
-function Cell({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("bg-card px-4 py-3", className)}>
-      <div className="label">{label}</div>
-      <div className="tnum mt-1.5 text-sm text-foreground">{children}</div>
-    </div>
-  );
-}
-
+/** Pipeline tier — per-symbol ingestion health + aggregate recovery/error metrics. */
 export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: number }) {
   const { t } = useApp();
   const status = snapshot.status;
+
   const totalRecords = status.reduce((a, s) => a + s.totalRecords, 0);
   const backfilled = status.reduce((a, s) => a + s.backfilledCount, 0);
   const gapsFilled = status.reduce((a, s) => a + s.gapsFilled, 0);
   const gapsDetected = status.reduce((a, s) => a + s.gapsDetected, 0);
-  const errors = status.reduce((a, s) => a + s.errorCount, 0);
-  const lastReconcile = status.reduce<number | null>(
-    (a, s) => Math.max(a ?? 0, s.reconcileLastRun ?? 0) || null,
-    null,
-  );
+  const reconnects = status.reduce((a, s) => a + s.reconnectCount, 0);
+  const aggRecovery = gapsDetected > 0 ? (gapsFilled / gapsDetected) * 100 : 100;
+  const lastReconcile =
+    status.reduce<number | null>((a, s) => Math.max(a ?? 0, s.reconcileLastRun ?? 0) || null, null);
 
   return (
-    <div className="grid grid-cols-2 gap-px rounded-lg border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
-      {status.map((s: Status) => (
-        <Cell key={s.symbol} label={`${s.symbol} · ${t("ops.wsLag")}`}>
-          <div className="flex items-center gap-2">
-            <LiveDot live={s.wsConnected === 1} />
-            <Badge variant={s.wsConnected === 1 ? "success" : "danger"}>
-              {s.wsConnected === 1 ? t("ops.live") : t("ops.down")}
-            </Badge>
-            <span
-              className={cn(
-                "ml-auto",
-                lagTier(s.lagMs) === "success" && "text-[hsl(var(--success))]",
-                lagTier(s.lagMs) === "warning" && "text-[hsl(var(--warning))]",
-                lagTier(s.lagMs) === "danger" && "text-[hsl(var(--danger))]",
-              )}
-            >
-              {fmtDuration(s.lagMs)}
-            </span>
-          </div>
-        </Cell>
-      ))}
+    <div>
+      <div className="label mb-2">{t("pipeline.title")}</div>
 
-      <Cell label={t("ops.totalRecords")}>{fmtInt(totalRecords)}</Cell>
-      <Cell label={t("ops.backfilled")}>{fmtInt(backfilled)}</Cell>
-      <Cell label={t("ops.gapsFilledSeen")}>
-        <span className={gapsDetected > 0 ? "text-[hsl(var(--warning))]" : undefined}>
-          {fmtInt(gapsFilled)} / {fmtInt(gapsDetected)}
-        </span>
-      </Cell>
-      <Cell label={t("ops.errors")}>
-        <span className={errors > 0 ? "text-[hsl(var(--danger))]" : undefined}>
-          {fmtInt(errors)}
-        </span>
-      </Cell>
-      <Cell label={t("ops.lastReconcile")}>{fmtTimeAgo(lastReconcile, now)}</Cell>
+      {/* Per-symbol ingestion health */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-4">
+        {status.map((s) => [
+          <Stat key={`${s.symbol}-ws`} label={`${s.symbol} · ${t("pipeline.ws")}`}>
+            <div className="flex items-center gap-2">
+              <LiveDot live={s.wsConnected === 1} />
+              <Badge variant={s.wsConnected === 1 ? "success" : "danger"}>
+                {s.wsConnected === 1 ? t("ops.live") : t("ops.down")}
+              </Badge>
+            </div>
+          </Stat>,
+          <Stat
+            key={`${s.symbol}-rate`}
+            label={`${s.symbol} · ${t("pipeline.msgRate")}`}
+            tier={msgRateTier(s.wsConnected === 1, s.wsMsgRate)}
+          >
+            {s.wsMsgRate.toFixed(1)}
+          </Stat>,
+          <Stat
+            key={`${s.symbol}-lag`}
+            label={`${s.symbol} · ${t("pipeline.lag")}`}
+            tier={lagTier(s.lagMs)}
+          >
+            {fmtDuration(s.lagMs)}
+          </Stat>,
+          <Stat key={`${s.symbol}-last`} label={`${s.symbol} · ${t("pipeline.lastMessage")}`}>
+            {fmtClock(s.lastMessageAt)}
+          </Stat>,
+        ])}
+      </div>
+
+      {/* Aggregate recovery / errors / counters */}
+      <div className="mt-2 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3 lg:grid-cols-7">
+        <Stat label={t("pipeline.recoveryRate")} tier={recoveryTier(aggRecovery)}>
+          {aggRecovery.toFixed(1)}%
+        </Stat>
+        <Stat label={t("pipeline.detectedRecovered")}>
+          {fmtInt(gapsDetected)} / {fmtInt(gapsFilled)}
+        </Stat>
+        <Stat label={t("pipeline.reconnect")}>{fmtInt(reconnects)}</Stat>
+        <Stat label={t("pipeline.errorsPerMin")} tier={errorRateTier(snapshot.system.errorsLastMin)}>
+          {fmtInt(snapshot.system.errorsLastMin)}
+        </Stat>
+        <Stat label={t("ops.backfilled")}>{fmtInt(backfilled)}</Stat>
+        <Stat label={t("ops.totalRecords")}>{fmtInt(totalRecords)}</Stat>
+        <Stat label={t("ops.lastReconcile")}>{fmtTimeAgo(lastReconcile, now)}</Stat>
+      </div>
     </div>
   );
 }

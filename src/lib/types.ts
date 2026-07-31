@@ -29,6 +29,27 @@ export interface PipelineStatus {
   errorCount: number;
   reconcileLastRun: number | null;
   updatedAt: number;
+  messageCount: number;
+  wsMsgRate: number;
+  reconnectCount: number;
+  bestBid: number | null;
+  bestAsk: number | null;
+  tickerUpdatedAt: number | null;
+}
+
+/** Collector process + REST usage snapshot (single row). */
+export interface SystemMetrics {
+  cpuPct: number;
+  rssBytes: number;
+  uptimeSec: number;
+  restCallsTotal: number;
+  restCallsRate: number;
+  restRetryCount: number;
+  rateLimitedCount: number;
+  serverErrorCount: number;
+  usedWeight: number;
+  weightLimit: number;
+  updatedAt: number;
 }
 
 export type PipelineEventType =
@@ -49,21 +70,35 @@ export interface PipelineEvent {
   count: number;
 }
 
-/** Derived market metrics for a symbol, computed from stored klines. */
+/** Derived market metrics for a symbol. Kline-derived + live ticker fields. */
 export interface MarketMetrics {
   symbol: string;
   lastPrice: number | null;
   changePct24h: number | null;
   volume24h: number | null;
   volatility: number | null;
+  vwap24h: number | null;
+  high24h: number | null;
+  low24h: number | null;
+  bid: number | null;
+  ask: number | null;
+  spreadPct: number | null;
   lastCandle: Kline | null;
 }
+
+/** Per-symbol pipeline status augmented with derived fields for the dashboard. */
+export type PipelineStatusView = PipelineStatus & {
+  lagMs: number | null;
+  totalRecords: number;
+  gapRecoveryRate: number | null;
+};
 
 /** Payload pushed over SSE / returned by /api/health. */
 export interface DashboardSnapshot {
   ts: number;
-  status: (PipelineStatus & { lagMs: number | null; totalRecords: number })[];
+  status: PipelineStatusView[];
   market: MarketMetrics[];
   series: Record<string, { t: number; close: number; volume: number }[]>;
   events: PipelineEvent[];
+  system: SystemMetrics & { errorsLastMin: number };
 }

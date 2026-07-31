@@ -8,6 +8,7 @@ import { MarketCard } from "@/components/dashboard/market-card";
 import { OpsStrip } from "@/components/dashboard/ops-strip";
 import { PriceChart } from "@/components/dashboard/price-chart";
 import { RecentTable } from "@/components/dashboard/recent-table";
+import { SystemStrip } from "@/components/dashboard/system-strip";
 import { useApp } from "@/components/providers";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { fmtClock } from "@/lib/format";
@@ -73,7 +74,12 @@ export default function DashboardPage() {
             ))}
           </section>
 
-          {/* Ops metrics */}
+          {/* System tier — collector process + REST usage */}
+          <section>
+            <SystemStrip system={snapshot.system} />
+          </section>
+
+          {/* Pipeline tier — ingestion health */}
           <section>
             <OpsStrip snapshot={snapshot} now={snapshot.ts} />
           </section>

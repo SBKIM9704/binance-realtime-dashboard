@@ -37,6 +37,22 @@ export function fmtDuration(ms: number | null | undefined): string {
   return `${h}h ${m % 60}m`;
 }
 
+export function fmtBytes(bytes: number | null | undefined): string {
+  if (bytes == null || Number.isNaN(bytes) || bytes <= 0) return "—";
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1024) return `${mb.toFixed(0)}MB`;
+  return `${(mb / 1024).toFixed(2)}GB`;
+}
+
+export function fmtUptime(sec: number | null | undefined): string {
+  if (sec == null || Number.isNaN(sec) || sec <= 0) return "—";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  const s = Math.floor(sec % 60);
+  return `${m}m ${s}s`;
+}
+
 export function fmtClock(ts: number | null | undefined): string {
   if (ts == null) return "—";
   return new Date(ts).toLocaleTimeString("en-GB", { hour12: false });
