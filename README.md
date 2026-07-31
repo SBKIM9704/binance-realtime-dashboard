@@ -165,6 +165,8 @@ npm run dev
 | `npm run build` | 프로덕션 빌드 |
 | `npm run start` | 프로덕션 실행 (collector + web) |
 | `npm run typecheck` | 타입 체크 (`tsc --noEmit`) |
+| `npm test` | 유닛 테스트 실행 (vitest) |
+| `npm run test:watch` | 유닛 테스트 watch 모드 |
 
 <br />
 
@@ -292,6 +294,10 @@ Binance API에 **과부하나 IP 밴을 유발하지 않도록** 사용량을 �
 | `/api/klines` | OHLCV 원자료 조회 정상 |
 | `npm run build` | 성공 (4 routes) |
 | `npm run typecheck` | 통과 |
+| `npm test` | **16 tests 통과** (gap 계산 · 지표 계산 · Binance 파서) |
+
+> 테스트는 네트워크·DB 없이 순수 도메인 로직만 결정론적으로 검증합니다
+> (`src/lib/*.test.ts`). "표면은 최소, 코어는 테스트" 원칙으로 고가치 로직에 집중했습니다.
 
 <br />
 
@@ -299,7 +305,7 @@ Binance API에 **과부하나 IP 밴을 유발하지 않도록** 사용량을 �
 
 - [ ] `docker-compose`로 원커맨드 실행 + Postgres/TimescaleDB 옵션
 - [ ] `@aggTrade` 스트림으로 실시간 체결 흐름/틱 지표 추가
-- [ ] 백필 gap 계산·지표 계산 유닛 테스트
+- [x] 백필 gap 계산·지표 계산 유닛 테스트
 - [ ] 다중 인터벌(5m/1h) 및 심볼 동적 추가
 - [ ] 알림(수집 지연·연속 결측 임계치 초과 시)
 

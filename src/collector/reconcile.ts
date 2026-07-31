@@ -1,4 +1,5 @@
 import { config } from "../lib/config";
+import { findMissingBuckets } from "../lib/gaps";
 import { getOpenTimesInRange } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
 import { fetchAndStoreRange } from "./backfill";
@@ -20,10 +21,7 @@ export async function reconcileSymbol(symbol: string): Promise<void> {
   if (end < start) return;
 
   const existing = new Set(getOpenTimesInRange(symbol, interval, start, end));
-  const missing: number[] = [];
-  for (let t = start; t <= end; t += step) {
-    if (!existing.has(t)) missing.push(t);
-  }
+  const missing = findMissingBuckets(existing, start, end, step);
 
   updateStatus(symbol, { reconcileLastRun: now });
 

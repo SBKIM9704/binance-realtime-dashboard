@@ -15,9 +15,17 @@ function stddev(values: number[]): number | null {
   return Math.sqrt(variance);
 }
 
-/** Compute derived market metrics for a symbol from its recent klines. */
+/** Fetch a symbol's recent klines from storage and compute its market metrics. */
 export function computeMarketMetrics(symbol: string): MarketMetrics {
   const klines = getRecentKlines(symbol, config.KLINE_INTERVAL, MINUTES_24H);
+  return deriveMarketMetrics(symbol, klines);
+}
+
+/**
+ * Pure market-metric derivation from an ascending (oldest→newest) kline array.
+ * Separated from storage so it can be unit-tested without a database.
+ */
+export function deriveMarketMetrics(symbol: string, klines: Kline[]): MarketMetrics {
   if (klines.length === 0) {
     return {
       symbol,
