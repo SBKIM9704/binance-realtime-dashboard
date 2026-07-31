@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Controls } from "@/components/dashboard/controls";
+import { Diagnostics } from "@/components/dashboard/diagnostics";
 import { EventsTimeline } from "@/components/dashboard/events-timeline";
 import { LiveDot } from "@/components/dashboard/live-dot";
 import { MarketCard } from "@/components/dashboard/market-card";
-import { OpsStrip } from "@/components/dashboard/ops-strip";
 import { PriceChart } from "@/components/dashboard/price-chart";
 import { RecentTable } from "@/components/dashboard/recent-table";
-import { SystemStrip } from "@/components/dashboard/system-strip";
+import { StatusRibbon } from "@/components/dashboard/status-ribbon";
 import { useApp } from "@/components/providers";
 import { useSnapshot } from "@/hooks/useSnapshot";
 import { fmtClock } from "@/lib/format";
@@ -61,8 +61,11 @@ export default function DashboardPage() {
       {!snapshot ? (
         <LoadingState />
       ) : (
-        <div className="space-y-4">
-          {/* Market cards */}
+        <div className="space-y-5">
+          {/* At-a-glance health summary */}
+          <StatusRibbon snapshot={snapshot} />
+
+          {/* Market KPI cards */}
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {snapshot.market.map((m, i) => (
               <MarketCard
@@ -74,17 +77,7 @@ export default function DashboardPage() {
             ))}
           </section>
 
-          {/* System tier — collector process + REST usage */}
-          <section>
-            <SystemStrip system={snapshot.system} />
-          </section>
-
-          {/* Pipeline tier — ingestion health */}
-          <section>
-            <OpsStrip snapshot={snapshot} now={snapshot.ts} />
-          </section>
-
-          {/* Chart */}
+          {/* Chart — hero */}
           <section>
             <PriceChart snapshot={snapshot} />
           </section>
@@ -94,6 +87,9 @@ export default function DashboardPage() {
             <EventsTimeline events={snapshot.events} />
             <RecentTable symbols={symbols} refreshKey={Math.floor(snapshot.ts / 3000)} />
           </section>
+
+          {/* Detailed System + Pipeline metrics (collapsed by default) */}
+          <Diagnostics snapshot={snapshot} />
 
           <footer className="pt-4 text-center text-[11px] text-muted-foreground">
             {t("footer.text", { time: fmtClock(snapshot.ts) })}

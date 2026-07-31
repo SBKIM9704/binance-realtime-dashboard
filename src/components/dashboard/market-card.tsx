@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useApp } from "@/components/providers";
-import { fmtCompact, fmtPct, fmtPrice } from "@/lib/format";
+import { fmtCompact, fmtPrice } from "@/lib/format";
 import type { TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { MarketMetrics } from "@/lib/types";
@@ -31,9 +31,9 @@ export function MarketCard({
   useEffect(() => {
     if (lastPrice != null && prev.current != null && lastPrice !== prev.current) {
       setFlash(lastPrice > prev.current ? "up" : "down");
-      const t = setTimeout(() => setFlash(null), 600);
+      const timer = setTimeout(() => setFlash(null), 600);
       prev.current = lastPrice;
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
     prev.current = lastPrice;
   }, [lastPrice]);
@@ -43,74 +43,74 @@ export function MarketCard({
       className="grain animate-fade-up overflow-hidden"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between p-4 pb-2">
+      <div className="flex items-start justify-between p-5 pb-3">
         <div>
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-2xl italic leading-none text-foreground">
               {symbol.replace("USDT", "")}
             </span>
-            <span className="label">/ USDT</span>
+            <span className="label">/ USDT · {assetName}</span>
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">{assetName}</div>
+
+          {/* Price hero */}
+          <div
+            className={cn(
+              "tnum mt-3 text-4xl font-medium tracking-tight transition-colors",
+              flash === "up" && "text-[hsl(var(--success))]",
+              flash === "down" && "text-[hsl(var(--danger))]",
+            )}
+          >
+            <span className="text-xl text-muted-foreground">$</span>
+            {fmtPrice(lastPrice)}
+          </div>
+
+          {/* Subtle bid/ask line */}
+          <div className="tnum mt-2 text-[11px] text-muted-foreground">
+            {t("market.bid")} {fmtPrice(bid)} · {t("market.ask")} {fmtPrice(ask)}
+            {spreadPct != null && ` · ${t("market.spread")} ${spreadPct.toFixed(3)}%`}
+          </div>
         </div>
+
         <span
           className={cn(
-            "rounded-sm px-2 py-1 text-sm font-medium tnum",
+            "tnum rounded-sm px-2 py-1 text-base font-medium",
             up ? "text-[hsl(var(--success))]" : "text-[hsl(var(--danger))]",
             up ? "bg-[hsl(var(--success)/0.1)]" : "bg-[hsl(var(--danger)/0.1)]",
           )}
         >
-          {fmtPct(changePct24h)}
+          {changePct24h != null ? `${up ? "+" : ""}${changePct24h.toFixed(2)}%` : "—"}
         </span>
       </div>
 
-      <div className="px-4">
-        <div
-          className={cn(
-            "tnum text-3xl font-medium tracking-tight transition-colors",
-            flash === "up" && "text-[hsl(var(--success))]",
-            flash === "down" && "text-[hsl(var(--danger))]",
-          )}
-        >
-          <span className="text-lg text-muted-foreground">$</span>
-          {fmtPrice(lastPrice)}
-        </div>
-      </div>
-
-      <div className="mt-2 px-2">
+      <div className="px-3">
         <Sparkline
           data={series}
-          width={320}
-          height={48}
+          width={340}
+          height={44}
           color={up ? "hsl(var(--success))" : "hsl(var(--danger))"}
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-3">
-        <Stat label={t("market.bid")} value={fmtPrice(bid)} />
-        <Stat label={t("market.ask")} value={fmtPrice(ask)} />
-        <Stat
-          label={t("market.spread")}
-          value={spreadPct != null ? `${spreadPct.toFixed(3)}%` : "—"}
-        />
-        <Stat label={t("market.vwap")} value={fmtPrice(vwap24h)} />
-        <Stat label={t("market.high24h")} value={fmtPrice(high24h)} />
-        <Stat label={t("market.low24h")} value={fmtPrice(low24h)} />
-        <Stat label={t("market.volume")} value={fmtCompact(volume24h)} />
-        <Stat
+      {/* Compact, low-contrast secondary metrics */}
+      <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-3 border-t border-border px-5 py-4">
+        <MiniStat label={t("market.high24h")} value={fmtPrice(high24h)} />
+        <MiniStat label={t("market.low24h")} value={fmtPrice(low24h)} />
+        <MiniStat label={t("market.vwap")} value={fmtPrice(vwap24h)} />
+        <MiniStat label={t("market.volume")} value={fmtCompact(volume24h)} />
+        <MiniStat
           label={t("market.volatility")}
-          value={volatility != null ? `${(volatility * 100).toFixed(3)}%` : "—"}
+          value={volatility != null ? `${(volatility * 100).toFixed(2)}%` : "—"}
         />
       </div>
     </Card>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-card px-4 py-3">
+    <div>
       <div className="label">{label}</div>
-      <div className="tnum mt-1 text-sm text-foreground">{value}</div>
+      <div className="tnum mt-0.5 text-sm text-foreground/90">{value}</div>
     </div>
   );
 }

@@ -8,6 +8,19 @@ export const tierColor: Record<Tier, string> = {
   crit: "text-[hsl(var(--danger))]",
 };
 
+/** Maps a health tier to a background colour (for dots / pills). */
+export const tierDot: Record<Tier, string> = {
+  ok: "bg-[hsl(var(--success))]",
+  warn: "bg-[hsl(var(--warning))]",
+  crit: "bg-[hsl(var(--danger))]",
+};
+
+/** Worst (most severe) tier across the given tiers. */
+export function worstTier(tiers: Tier[]): Tier {
+  const rank = { ok: 0, warn: 1, crit: 2 } as const;
+  return tiers.reduce<Tier>((acc, t) => (rank[t] > rank[acc] ? t : acc), "ok");
+}
+
 /** A single labelled metric cell, optionally coloured by health tier. */
 export function Stat({
   label,

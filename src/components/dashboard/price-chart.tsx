@@ -71,7 +71,7 @@ export function PriceChart({ snapshot }: { snapshot: DashboardSnapshot }) {
         </div>
       </div>
 
-      <div className="h-[320px] w-full p-2">
+      <div className="h-[400px] w-full p-2">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 12, right: 8, left: 8, bottom: 0 }}>
             <defs>
