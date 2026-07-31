@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { DEFAULT_LANG, type Lang, type TKey, translate } from "@/lib/i18n";
+import { type Lang, type TKey, translate } from "@/lib/i18n";
 
 export type Theme = "dark" | "light";
 
@@ -11,7 +11,6 @@ interface AppContextValue {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: TKey, vars?: Record<string, string>) => string;
-  /** False until client-side state is hydrated — used to avoid mismatched toggles. */
   mounted: boolean;
 }
 
@@ -19,43 +18,43 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const THEME_KEY = "theme";
 const LANG_KEY = "lang";
+const ONE_YEAR = 60 * 60 * 24 * 365;
 
-export function AppProviders({ children }: { children: React.ReactNode }) {
-  // Server + first client render must match: dark theme (see no-flash script) and default lang.
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [lang, setLangState] = useState<Lang>(DEFAULT_LANG);
+function setCookie(name: string, value: string): void {
+  document.cookie = `${name}=${value}; path=/; max-age=${ONE_YEAR}; samesite=lax`;
+}
+
+/**
+ * Theme + language are stored in cookies so the server can render the correct
+ * theme class and <html lang> on the first request (no flash). Initial values
+ * come from the server (read from cookies in the root layout).
+ */
+export function AppProviders({
+  children,
+  initialTheme,
+  initialLang,
+}: {
+  children: React.ReactNode;
+  initialTheme: Theme;
+  initialLang: Lang;
+}) {
+  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const [lang, setLangState] = useState<Lang>(initialLang);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const storedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
-    const storedLang = localStorage.getItem(LANG_KEY) as Lang | null;
-    setThemeState(
-      storedTheme ??
-        (document.documentElement.classList.contains("dark") ? "dark" : "light"),
-    );
-    if (storedLang === "ko" || storedLang === "en") setLangState(storedLang);
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   const applyTheme = (next: Theme) => {
     setThemeState(next);
     document.documentElement.classList.toggle("dark", next === "dark");
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch {
-      /* storage unavailable */
-    }
+    setCookie(THEME_KEY, next);
   };
 
   const toggleTheme = () => applyTheme(theme === "dark" ? "light" : "dark");
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    try {
-      localStorage.setItem(LANG_KEY, l);
-    } catch {
-      /* storage unavailable */
-    }
+    setCookie(LANG_KEY, l);
   };
 
   const t = (key: TKey, vars?: Record<string, string>) => translate(lang, key, vars);

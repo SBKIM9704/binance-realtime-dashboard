@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { IBM_Plex_Mono } from "next/font/google";
-import { AppProviders } from "@/components/providers";
+import { AppProviders, type Theme } from "@/components/providers";
+import type { Lang } from "@/lib/i18n";
 import "./globals.css";
 
 // Monospace for numeric/tabular data (prices, tables) — great tabular figures.
@@ -15,12 +17,15 @@ export const metadata: Metadata = {
   description: "실시간 비트코인·이더리움 마켓 대시보드 (Binance)",
 };
 
-// Apply the persisted (or default dark) theme before paint to avoid a flash.
-const noFlashTheme = `(function(){try{var t=localStorage.getItem('theme');if(t?t==='dark':true){document.documentElement.classList.add('dark');}}catch(e){document.documentElement.classList.add('dark');}})();`;
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read persisted preferences from cookies so the very first render is correct
+  // (no theme/language flash). Defaults: dark theme, Korean.
+  const cookieStore = await cookies();
+  const theme: Theme = cookieStore.get("theme")?.value === "light" ? "light" : "dark";
+  const lang: Lang = cookieStore.get("lang")?.value === "en" ? "en" : "ko";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={mono.variable} suppressHydrationWarning>
+    <html lang={lang} className={`${mono.variable}${theme === "dark" ? " dark" : ""}`}>
       <head>
         {/* Pretendard — modern Korean UI font (dynamic-subset via CDN). */}
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
@@ -28,10 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
-        <script dangerouslySetInnerHTML={{ __html: noFlashTheme }} />
       </head>
       <body className="min-h-screen font-sans antialiased">
-        <AppProviders>{children}</AppProviders>
+        <AppProviders initialTheme={theme} initialLang={lang}>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );
