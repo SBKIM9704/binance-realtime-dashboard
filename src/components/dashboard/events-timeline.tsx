@@ -1,7 +1,9 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { useApp } from "@/components/providers";
 import { fmtClock } from "@/lib/format";
+import type { TKey } from "@/lib/i18n";
 import type { PipelineEvent, PipelineEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -15,26 +17,17 @@ const DOT: Record<PipelineEventType, string> = {
   error: "bg-[hsl(var(--danger))]",
 };
 
-const LABEL: Record<PipelineEventType, string> = {
-  ws_connect: "WS connect",
-  ws_disconnect: "WS disconnect",
-  backfill_start: "Backfill start",
-  backfill_done: "Backfill done",
-  gap_filled: "Gap filled",
-  reconcile: "Reconcile",
-  error: "Error",
-};
-
 export function EventsTimeline({ events }: { events: PipelineEvent[] }) {
+  const { t } = useApp();
   return (
     <Card className="animate-fade-up" style={{ animationDelay: "200ms" }}>
       <div className="border-b border-border p-4">
-        <div className="label">Operations Log</div>
-        <div className="font-serif text-lg italic text-foreground">Pipeline events</div>
+        <div className="label">{t("events.title")}</div>
+        <div className="font-serif text-lg italic text-foreground">{t("events.subtitle")}</div>
       </div>
       <div className="max-h-[300px] overflow-auto">
         {events.length === 0 ? (
-          <div className="p-4 text-xs text-muted-foreground">No events yet.</div>
+          <div className="p-4 text-xs text-muted-foreground">{t("events.empty")}</div>
         ) : (
           <ul className="divide-y divide-border/50">
             {events.map((e) => (
@@ -46,7 +39,9 @@ export function EventsTimeline({ events }: { events: PipelineEvent[] }) {
                 <span className="w-14 shrink-0 text-foreground">
                   {e.symbol.replace("USDT", "")}
                 </span>
-                <span className="w-28 shrink-0 text-muted-foreground">{LABEL[e.type]}</span>
+                <span className="w-28 shrink-0 text-muted-foreground">
+                  {t(`event.${e.type}` as TKey)}
+                </span>
                 <span className="truncate text-muted-foreground/80">
                   {e.detail}
                   {e.count > 0 ? ` · ${e.count}` : ""}

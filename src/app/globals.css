@@ -4,6 +4,38 @@
 
 @layer base {
   :root {
+    /* Light "paper" terminal palette — warm off-white with the same amber signal. */
+    --background: 40 30% 96%;
+    --foreground: 30 12% 15%;
+
+    --card: 40 40% 99%;
+    --card-foreground: 30 12% 15%;
+
+    --primary: 38 92% 46%; /* amber signal (darkened for contrast on light) */
+    --primary-foreground: 40 40% 99%;
+
+    --secondary: 40 16% 90%;
+    --secondary-foreground: 30 12% 22%;
+
+    --muted: 40 16% 91%;
+    --muted-foreground: 35 8% 42%;
+
+    --accent: 40 18% 88%;
+    --accent-foreground: 30 12% 15%;
+
+    --border: 38 14% 82%;
+    --input: 38 14% 80%;
+    --ring: 38 92% 46%;
+
+    --success: 152 55% 36%;
+    --danger: 2 68% 50%;
+    --warning: 35 88% 44%;
+    --flash: 38 92% 46%;
+
+    --radius: 0.375rem;
+  }
+
+  .dark {
     /* Operations-terminal palette — warm near-black charcoal with an amber signal accent. */
     --background: 30 7% 6%;
     --foreground: 40 18% 90%;
@@ -11,7 +43,7 @@
     --card: 30 6% 9%;
     --card-foreground: 40 18% 90%;
 
-    --primary: 45 96% 56%; /* amber signal */
+    --primary: 45 96% 56%;
     --primary-foreground: 30 30% 8%;
 
     --secondary: 30 5% 14%;
@@ -31,8 +63,6 @@
     --danger: 2 74% 60%;
     --warning: 38 92% 56%;
     --flash: 45 96% 56%;
-
-    --radius: 0.375rem;
   }
 
   * {
@@ -44,6 +74,18 @@
     font-feature-settings: "tnum" 1, "cv01" 1;
     -webkit-font-smoothing: antialiased;
     background-image:
+      radial-gradient(140% 90% at 100% 0%, hsl(45 80% 78% / 0.28) 0%, transparent 44%),
+      radial-gradient(120% 90% at 0% 100%, hsl(200 55% 82% / 0.24) 0%, transparent 46%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 30px,
+        hsl(30 10% 30% / 0.03) 30px 31px
+      );
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background-image:
       radial-gradient(140% 90% at 100% 0%, hsl(45 60% 12% / 0.16) 0%, transparent 42%),
       radial-gradient(120% 90% at 0% 100%, hsl(200 40% 14% / 0.12) 0%, transparent 45%),
       repeating-linear-gradient(
@@ -51,7 +93,6 @@
         transparent 0 30px,
         hsl(40 10% 60% / 0.015) 30px 31px
       );
-    background-attachment: fixed;
   }
 
   /* Tabular numerals for all data readouts. */
