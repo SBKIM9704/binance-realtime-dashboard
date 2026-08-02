@@ -6,10 +6,24 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
 
 - **Collector** (`src/collector/`) — 상주 프로세스. 시작 시 백필(REST) → WebSocket 실시간 수집 →
   주기적 reconciler로 결측 구간 보정. gap 탐지 + REST 채움을 단일 메커니즘으로 구현하여
-  최초 실행/서버 재시작 누락을 모두 커버.
-- **Web** (`src/app/`) — Next.js(App Router) 대시보드. SSE(`/api/stream`)로 실시간 갱신.
+  최초 실행/서버 재시작 누락을 모두 커버. 별도로 **코스 히스토리 티어**(`HISTORY_TIERS`,
+  기본 1분봉 30일 + 1시간봉 전체)를 백그라운드로 유지 — 1초봉으로는 실제 역사를 담을 수 없기 때문.
+- **Web** (`src/app/`) — Next.js(App Router) 대시보드. 두 라우트를 `(dash)` 셸이 감쌈:
+  `/` 마켓(캔들 차트 + 시세 카드), `/ops` 운영 현황. SSE(`/api/stream`)로 1초 갱신.
+  차트는 `/api/candles`에서 롤업된 캔들을 받음.
 - **Storage** — SQLite(`better-sqlite3`, WAL). collector(write)/web(read) 동시 접근.
+  `klines` PK가 `(symbol, interval, open_time)`이라 여러 해상도를 한 테이블에 보관.
   스키마·리포지토리는 `src/lib/`.
+
+## Key invariants
+
+- **큰 봉은 저장하지 않는다.** 조회 시 SQL로 롤업한다(`getAggregatedCandles`). 인터벌 추가가
+  수집기·스키마를 건드리지 않게 하기 위함.
+- **집계 소스는 밀도로 고른다.** 1초봉은 수집기가 돌아간 구간만 존재하므로, 24h 지표와 긴 기간
+  차트는 `pickSourceInterval`이 고른 조밀한 티어에서 계산한다.
+- **등락 색은 `src/lib/trend.ts` 한 곳에만 정의한다.** 캔버스와 DOM이 같은 정의를 읽는다.
+- **낡은 프레임은 낡았다고 표시한다.** SSE가 끊기면 상태를 crit으로 강제하고 수치를 흐린다.
+- **`better-sqlite3`는 JS number를 REAL로 바인딩한다.** 정수 나눗셈이 필요하면 `CAST(... AS INTEGER)`.
 
 ## Commands
 
@@ -17,6 +31,7 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
 - `npm run dev:collector` / `npm run dev:web` — 개별 실행
 - `npm run collector` — collector만 (prod)
 - `npm run typecheck` — 타입 체크
+- `npm test` — 유닛 테스트 (vitest)
 
 ## Skills
 
