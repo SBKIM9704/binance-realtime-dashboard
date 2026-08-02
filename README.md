@@ -12,7 +12,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Binance](https://img.shields.io/badge/Binance-REST%20%2B%20WebSocket-F0B90B?logo=binance&logoColor=black)](https://binance-docs.github.io/apidocs/spot/en/)
-[![tests](https://img.shields.io/badge/tests-48%20passing-3FB950)](#-동작-검증)
+[![tests](https://img.shields.io/badge/tests-49%20passing-3FB950)](#-동작-검증)
 
 [빠른 시작](#-빠른-시작) · [요구사항 충족](#-과제-요구사항-충족) · [주요 기능](#-주요-기능) · [아키텍처](#-아키텍처) · [설계 결정](#-핵심-설계-결정) · [문서](#-문서)
 
@@ -308,7 +308,7 @@ BTCUSDT 9년치 1초봉은 약 **2억 8천만 개, 25GB**입니다. 그래서 �
 | `/api/health` · `/api/klines` | 스냅샷 · OHLCV 원자료 정상 응답 |
 | `npm run build` | 성공 (2 페이지 + 4 API 라우트) |
 | `npm run typecheck` | 통과 |
-| `npm test` | **48 tests 통과** |
+| `npm test` | **49 tests 통과** |
 
 > 테스트는 네트워크 없이 순수 도메인 로직만 결정론적으로 검증합니다 — gap 계산 · 지표 계산 ·
 > Binance 파서 · SQL 롤업 · 티어 선택 · 스파크라인. "표면은 최소, 코어는 테스트" 원칙입니다.
