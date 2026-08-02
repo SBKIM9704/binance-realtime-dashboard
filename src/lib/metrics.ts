@@ -1,12 +1,30 @@
+import { ttlMemo } from "./cache";
 import { config } from "./config";
-import { countKlines, get24hStats, getRecentKlines, type Stats24h } from "./repositories/klines";
+import {
+  countAllKlines,
+  countKlines,
+  get24hStats,
+  getIntervalStats,
+  getRecentCloses,
+  getRecentKlines,
+  type Stats24h,
+} from "./repositories/klines";
+import { pickSourceInterval } from "./source-interval";
 import { getAllStatus, getEventCountSince, getRecentEvents } from "./repositories/pipeline";
 import { getSystemMetrics } from "./repositories/system";
-import type { DashboardSnapshot, Kline, MarketMetrics, PipelineStatusView } from "./types";
+import type {
+  DashboardSnapshot,
+  Kline,
+  MarketMetrics,
+  PipelineStatusView,
+  SparkPoint,
+} from "./types";
 
 const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
 const VOL_CANDLES = 60; // volatility lookback (recent candles), interval-agnostic
-const SERIES_POINTS = 240; // chart points (interval-agnostic)
+// Sparkline samples only. The chart reads OHLC from /api/candles, so this ships just
+// what a ~340px sparkline can actually draw rather than a full chart window.
+const SERIES_POINTS = 60;
 const SNAPSHOT_CACHE_MS = 900; // reuse one computed snapshot within this window
 
 /** Sample standard deviation of an array. */
@@ -77,12 +95,30 @@ export function assembleMarketMetrics(
   };
 }
 
+/**
+ * Which stored tier to compute 24h market figures from.
+ *
+ * The collected 1s tier is the *operational* record: it only holds what the
+ * collector was actually running for, so summing it understated 24h volume by
+ * 35–60% and missed ETH's 24h low by 1.9% against Binance's published figures.
+ * The coarse tiers are REST-backfilled and dense, which drops that error to 0.2%.
+ * Precision is irrelevant here — every figure is an aggregate over a whole day.
+ */
+export function pick24hSource(symbol: string, since: number): string {
+  const stats = getIntervalStats(symbol, config.storedIntervals, since);
+  return pickSourceInterval(config.storedIntervals, stats, WINDOW_24H_MS, since) ??
+    config.KLINE_INTERVAL;
+}
+
 /** Fetch + compute a symbol's market metrics using SQL aggregates (interval-safe). */
 export function computeMarketMetrics(symbol: string): MarketMetrics {
-  const interval = config.KLINE_INTERVAL;
-  const stats = get24hStats(symbol, interval, Date.now() - WINDOW_24H_MS);
-  const tail = getRecentKlines(symbol, interval, VOL_CANDLES + 1);
-  return assembleMarketMetrics(symbol, stats, tail);
+  const since = Date.now() - WINDOW_24H_MS;
+  const source = pick24hSource(symbol, since);
+  const stats = get24hStats(symbol, source, since);
+  // Volatility reads the same tier, so its window is `VOL_CANDLES × source` rather
+  // than a minute of seconds — a far steadier estimate, and the label states it.
+  const tail = getRecentKlines(symbol, source, VOL_CANDLES + 1);
+  return { ...assembleMarketMetrics(symbol, stats, tail), source };
 }
 
 /** Build the full dashboard snapshot (status + market + system + series + events). */
@@ -98,14 +134,16 @@ export function buildSnapshot(seriesPoints = SERIES_POINTS, eventLimit = 20): Da
     return {
       ...s,
       lagMs,
-      totalRecords: countKlines(s.symbol, interval),
+      // Every stored tier, not just the collected one — history tiers are real rows.
+      totalRecords: countAllKlines(s.symbol),
+      liveRecords: countKlines(s.symbol, interval),
       gapRecoveryRate,
     };
   });
 
   const statusBySymbol = new Map(status.map((s) => [s.symbol, s]));
   const market: MarketMetrics[] = [];
-  const series: Record<string, { t: number; close: number; volume: number }[]> = {};
+  const series: Record<string, SparkPoint[]> = {};
 
   for (const symbol of config.symbols) {
     const m = computeMarketMetrics(symbol);
@@ -120,8 +158,7 @@ export function buildSnapshot(seriesPoints = SERIES_POINTS, eventLimit = 20): Da
     }
     market.push(m);
 
-    const recent: Kline[] = getRecentKlines(symbol, interval, seriesPoints);
-    series[symbol] = recent.map((k) => ({ t: k.openTime, close: k.close, volume: k.volume }));
+    series[symbol] = getRecentCloses(symbol, interval, seriesPoints);
   }
 
   const system = {
@@ -129,17 +166,19 @@ export function buildSnapshot(seriesPoints = SERIES_POINTS, eventLimit = 20): Da
     errorsLastMin: getEventCountSince(["error"], now - 60_000),
   };
 
-  return { ts: now, interval, status, market, series, events: getRecentEvents(eventLimit), system };
+  return {
+    ts: now,
+    interval,
+    symbols: config.symbols,
+    status,
+    market,
+    series,
+    events: getRecentEvents(eventLimit),
+    system,
+  };
 }
 
-// Shared, time-boxed snapshot cache: many SSE clients (tabs) share one compute
-// per ~second, so per-second cost is independent of how many pages are open.
-let cache: { ts: number; snap: DashboardSnapshot } | null = null;
-
+/** Many SSE clients (tabs) share one compute per ~second, so cost tracks time, not tabs. */
 export function getSnapshot(): DashboardSnapshot {
-  const now = Date.now();
-  if (cache && now - cache.ts < SNAPSHOT_CACHE_MS) return cache.snap;
-  const snap = buildSnapshot();
-  cache = { ts: now, snap };
-  return snap;
+  return ttlMemo("snapshot", SNAPSHOT_CACHE_MS, () => buildSnapshot());
 }

@@ -5,6 +5,20 @@
  */
 export type Tier = "ok" | "warn" | "crit";
 
+/**
+ * The "ok" bound, written the way it should appear next to the value.
+ *
+ * The colour contract was advertised in the README and invisible on screen: a green
+ * "0.8s" is unverifiable unless the reader also knows the bar was "< 5s". Keeping
+ * the strings here means the printed contract cannot drift from the functions below.
+ */
+export const THRESHOLD_LABEL = {
+  lag: "< 5s",
+  recovery: "100%",
+  weight: "< 70%",
+  errorRate: "0/min",
+} as const;
+
 /** Ingestion lag: < 5s ok, 5–30s warn, > 30s crit. */
 export function lagTier(lagMs: number | null): Tier {
   if (lagMs == null) return "warn";

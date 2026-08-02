@@ -84,22 +84,50 @@ export interface MarketMetrics {
   ask: number | null;
   spreadPct: number | null;
   lastCandle: Kline | null;
+  /**
+   * Which stored interval the 24h figures and volatility were aggregated from.
+   * Shown to the reader, because a figure's provenance is part of the figure here.
+   */
+  source?: string;
 }
 
 /** Per-symbol pipeline status augmented with derived fields for the dashboard. */
 export type PipelineStatusView = PipelineStatus & {
   lagMs: number | null;
+  /** Rows across every stored interval. */
   totalRecords: number;
+  /** Rows at the collected (live) interval only. */
+  liveRecords: number;
   gapRecoveryRate: number | null;
 };
 
-/** Payload pushed over SSE / returned by /api/health. */
+/** One chart candle — OHLCV keyed by open time, at whatever interval produced it. */
+export interface Candle {
+  t: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** A single sparkline sample: the closing price at a point in time. */
+export type SparkPoint = Pick<Candle, "t" | "close">;
+
+/**
+ * Payload pushed over SSE / returned by /api/health.
+ *
+ * `series` stays deliberately thin (it ships every second, to every open tab) and
+ * only feeds the card sparklines. The chart pulls full OHLC from /api/candles.
+ */
 export interface DashboardSnapshot {
   ts: number;
   interval: string;
+  /** Collected symbols, in configured order — the roster both views tab through. */
+  symbols: string[];
   status: PipelineStatusView[];
   market: MarketMetrics[];
-  series: Record<string, { t: number; close: number; volume: number }[]>;
+  series: Record<string, SparkPoint[]>;
   events: PipelineEvent[];
   system: SystemMetrics & { errorsLastMin: number };
 }
