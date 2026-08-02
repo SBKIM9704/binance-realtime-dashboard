@@ -1,5 +1,8 @@
+import type { Statement } from "better-sqlite3";
 import { getDb } from "../db";
-import type { Kline } from "../types";
+import { INTERVAL_TO_MS } from "../intervals";
+import type { TierStats } from "../source-interval";
+import type { Candle, Kline, SparkPoint } from "../types";
 
 interface KlineRow {
   symbol: string;
@@ -83,6 +86,14 @@ export function getMinOpenTime(symbol: string, interval: string): number | null 
   return row?.t ?? null;
 }
 
+/** Rows stored for a symbol across every interval, including history tiers. */
+export function countAllKlines(symbol: string): number {
+  const row = getDb()
+    .prepare("SELECT COUNT(*) AS c FROM klines WHERE symbol = ?")
+    .get(symbol) as { c: number };
+  return row.c;
+}
+
 export function countKlines(symbol: string, interval: string): number {
   const row = getDb()
     .prepare("SELECT COUNT(*) AS c FROM klines WHERE symbol = ? AND interval = ?")
@@ -99,6 +110,179 @@ export function getRecentKlines(symbol: string, interval: string, limit: number)
     )
     .all(symbol, interval, limit) as KlineRow[];
   return rows.map(rowToKline).reverse();
+}
+
+// better-sqlite3 does not cache prepared statements, and this is the most expensive
+// statement in the repo to compile — hoisted so the per-second poll pays it once.
+let aggregateStmt: Statement | null = null;
+let passthroughStmt: Statement | null = null;
+
+/**
+ * Roll stored candles up into larger buckets, in SQL.
+ *
+ * The collector only ever stores one interval (1s by default); every coarser view
+ * the chart offers is derived here rather than collected separately. open/close come
+ * from the first/last row inside each bucket (hence the ROW_NUMBER pass), high/low/
+ * volume are plain aggregates. The scan is bounded to the newest `limit` buckets so
+ * cost is independent of how much history the DB holds.
+ *
+ * Returns oldest → newest. The final bucket is normally still in progress.
+ */
+export function getAggregatedCandles(
+  symbol: string,
+  interval: string,
+  bucketMs: number,
+  limit: number,
+  from?: number,
+): Candle[] {
+  const newest = getMaxOpenTime(symbol, interval);
+  if (newest === null) return [];
+
+  // Align to bucket boundaries so the oldest bucket returned is a whole one.
+  const newestBucket = Math.floor(newest / bucketMs) * bucketMs;
+  const start = Math.max(from ?? 0, newestBucket - (limit - 1) * bucketMs);
+
+  // At the source interval every bucket holds exactly one row, so the window
+  // functions and GROUP BY would be pure overhead over a plain indexed read.
+  if (bucketMs === INTERVAL_TO_MS[interval]) {
+    passthroughStmt ??= getDb().prepare(
+      `SELECT open_time AS t, open, high, low, close, volume
+       FROM klines WHERE symbol = ? AND interval = ? AND open_time >= ?
+       ORDER BY open_time DESC LIMIT ?`,
+    );
+    return (passthroughStmt.all(symbol, interval, start, limit) as Candle[]).reverse();
+  }
+
+  aggregateStmt ??= getDb().prepare(
+    // better-sqlite3 binds JS numbers as REAL, and REAL division would put every
+    // source row in its own bucket — the casts keep the floor division integral.
+    `WITH params AS (
+         SELECT CAST(@bucketMs AS INTEGER) AS bucket_ms
+       ),
+       ranked AS (
+         SELECT (k.open_time / p.bucket_ms) * p.bucket_ms AS bucket,
+                k.open, k.high, k.low, k.close, k.volume,
+                ROW_NUMBER() OVER (
+                  PARTITION BY k.open_time / p.bucket_ms ORDER BY k.open_time ASC
+                ) AS first_rn,
+                ROW_NUMBER() OVER (
+                  PARTITION BY k.open_time / p.bucket_ms ORDER BY k.open_time DESC
+                ) AS last_rn
+         FROM klines k, params p
+         WHERE k.symbol = @symbol AND k.interval = @interval
+           AND k.open_time >= @start
+       )
+       SELECT bucket AS t,
+              MAX(CASE WHEN first_rn = 1 THEN open END) AS open,
+              MAX(high) AS high,
+              MIN(low) AS low,
+              MAX(CASE WHEN last_rn = 1 THEN close END) AS close,
+              COALESCE(SUM(volume), 0) AS volume
+       FROM ranked
+       GROUP BY bucket
+       ORDER BY bucket ASC`,
+  );
+  return aggregateStmt.all({ symbol, interval, bucketMs, start }) as Candle[];
+}
+
+/**
+ * Cached roll-up. Only the newest bucket can still be forming, so a repeat call
+ * recomputes that one bucket and reuses the closed ones — turning the expensive
+ * views (a 1h roll-up scans the whole symbol partition) into a tail query.
+ *
+ * Closed buckets are *not* permanently immutable here: the reconciler backfills
+ * missing source candles, which retroactively changes the bucket that contained
+ * them. `gapsFilled` is the collector's own counter for exactly that event, so a
+ * change in it drops the cache. Collector and web are separate processes, which
+ * is why the signal has to come through the database rather than a function call.
+ */
+const rollupCache = new Map<
+  string,
+  { gapsFilled: number; builtAt: number; from: number; candles: Candle[] }
+>();
+const ROLLUP_MAX_AGE_MS = 5 * 60 * 1000; // floor under retention pruning the oldest bucket
+
+export function getCachedCandles(
+  symbol: string,
+  interval: string,
+  bucketMs: number,
+  limit: number,
+  from?: number,
+): Candle[] {
+  const key = `${symbol}|${interval}|${bucketMs}|${limit}|${from ?? ""}`;
+  const gapsFilled = getGapsFilled(symbol);
+  const hit = rollupCache.get(key);
+  const now = Date.now();
+
+  const reusable =
+    hit &&
+    hit.gapsFilled === gapsFilled &&
+    now - hit.builtAt < ROLLUP_MAX_AGE_MS &&
+    hit.candles.length > 0;
+
+  if (!reusable) {
+    const candles = getAggregatedCandles(symbol, interval, bucketMs, limit, from);
+    rollupCache.set(key, { gapsFilled, builtAt: now, from: from ?? 0, candles });
+    return candles;
+  }
+
+  // Recompute from the last held bucket forward: that bucket may have grown, and
+  // newer ones may have opened since.
+  const lastT = hit.candles[hit.candles.length - 1].t;
+  const fresh = getAggregatedCandles(symbol, interval, bucketMs, limit, lastT);
+  if (fresh.length === 0) return hit.candles;
+
+  const merged = hit.candles.slice(0, -1).concat(fresh);
+  const trimmed = merged.length > limit ? merged.slice(merged.length - limit) : merged;
+  rollupCache.set(key, { ...hit, candles: trimmed });
+  return trimmed;
+}
+
+/** Gap-fill counter for a symbol — the roll-up cache's invalidation signal. */
+function getGapsFilled(symbol: string): number {
+  const row = getDb()
+    .prepare("SELECT gaps_filled FROM pipeline_status WHERE symbol = ?")
+    .get(symbol) as { gaps_filled: number } | undefined;
+  return row?.gaps_filled ?? 0;
+}
+
+/**
+ * Per-tier reach and completeness, for choosing which interval feeds a roll-up.
+ * Both are index-only scans (~1ms even over a week of 1s rows).
+ */
+export function getIntervalStats(
+  symbol: string,
+  intervals: string[],
+  since: number,
+): Map<string, TierStats> {
+  const db = getDb();
+  const minStmt = db.prepare(
+    "SELECT MIN(open_time) AS t FROM klines WHERE symbol = ? AND interval = ?",
+  );
+  const countStmt = db.prepare(
+    "SELECT COUNT(*) AS c FROM klines WHERE symbol = ? AND interval = ? AND open_time >= ?",
+  );
+
+  const out = new Map<string, TierStats>();
+  for (const interval of intervals) {
+    const min = minStmt.get(symbol, interval) as { t: number | null };
+    if (min?.t == null) continue;
+    const count = countStmt.get(symbol, interval, Math.max(since, min.t)) as { c: number };
+    out.set(interval, { from: min.t, rows: count.c });
+  }
+  return out;
+}
+
+/** Closes only, for the card sparklines. Avoids shipping 14 columns over SSE. */
+export function getRecentCloses(symbol: string, interval: string, limit: number): SparkPoint[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT open_time AS t, close FROM klines
+       WHERE symbol = ? AND interval = ?
+       ORDER BY open_time DESC LIMIT ?`,
+    )
+    .all(symbol, interval, limit) as SparkPoint[];
+  return rows.reverse();
 }
 
 /** 24h rollup computed in SQLite (MIN/MAX/SUM) — avoids pulling every row into JS. */
