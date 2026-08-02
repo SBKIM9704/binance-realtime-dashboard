@@ -44,7 +44,7 @@ export function OpsHero({ snapshot }: { snapshot: DashboardSnapshot }) {
         label={t("pipeline.ws")}
         tier={worstTier(status.map((s) => wsTier(s.wsConnected === 1)))}
         value={`${wsUp}/${status.length}`}
-        threshold={`${status.length}/${status.length}`}
+        threshold={`= ${status.length}/${status.length}`}
       />
       <HeroStat
         label={t("pipeline.lag")}

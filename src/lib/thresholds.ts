@@ -12,11 +12,14 @@ export type Tier = "ok" | "warn" | "crit";
  * "0.8s" is unverifiable unless the reader also knows the bar was "< 5s". Keeping
  * the strings here means the printed contract cannot drift from the functions below.
  */
+// Every label carries a comparator. Without one, a metric sitting exactly at its
+// bound renders as "100.0% 100%" or "0 0/min", which reads as a duplicated value
+// rather than a value and the bar it is being measured against.
 export const THRESHOLD_LABEL = {
   lag: "< 5s",
-  recovery: "100%",
+  recovery: "= 100%",
   weight: "< 70%",
-  errorRate: "0/min",
+  errorRate: "= 0/min",
 } as const;
 
 /** Ingestion lag: < 5s ok, 5–30s warn, > 30s crit. */

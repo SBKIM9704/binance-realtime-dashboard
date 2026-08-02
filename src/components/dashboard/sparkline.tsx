@@ -31,12 +31,26 @@ export function Sparkline({
 
   const min = Math.min(...data);
   const max = Math.max(...data);
-  const span = max - min || 1;
+  const mid = (min + max) / 2;
+
+  /**
+   * Floor on the vertical scale, as a fraction of price.
+   *
+   * Plain min-max normalisation makes every series fill the full height, so a
+   * minute in which BTC moved 0.01% renders as an identical cliff to one where it
+   * moved 2%. The sparkline is there to show how much the price moved, so a
+   * near-flat minute has to read as flat.
+   */
+  const MIN_RELATIVE_SPAN = 0.002;
+  const span = Math.max(max - min, Math.abs(mid) * MIN_RELATIVE_SPAN) || 1;
   const stepX = width / (data.length - 1);
 
   const points = data.map((v, i) => {
     const x = i * stepX;
-    const y = height - ((v - min) / span) * (height - 4) - 2;
+    // Centred on the mid-price, so inflating the span keeps the line in the middle
+    // instead of pinning it to the floor.
+    const norm = 0.5 + (v - mid) / span;
+    const y = height - norm * (height - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
 
