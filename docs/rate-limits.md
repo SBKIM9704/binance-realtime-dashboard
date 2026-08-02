@@ -49,7 +49,8 @@ fetchKlines ─▶ binanceFetch ─▶ (weight 체크 → fetch → 헤더 반�
 ```
 
 > `binanceFetch`가 집계한 used-weight·재시도·429·5xx는 `system_metrics`에 저장되어
-> 대시보드 **System 섹션**에 `Weight x/6000`(임계값 색상)으로 실시간 노출됩니다. → [`metrics.md`](metrics.md) D절.
+> 대시보드 **System 섹션**에 `Weight x/6000`(임계값 색상)으로 실시간 노출됩니다.
+> → [`dashboard-metrics.md`](dashboard-metrics.md) 5절 "System 지표".
 
 ## 4. 관련 환경변수
 

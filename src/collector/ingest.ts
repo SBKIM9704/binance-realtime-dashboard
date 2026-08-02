@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { buildStreamUrl, parseWsBookTicker, parseWsKline } from "../lib/binance";
+import { buildStreamUrl, parseWsMessage } from "../lib/binance";
 import { config } from "../lib/config";
 import { upsertKline } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
@@ -12,7 +12,7 @@ const STATS_FLUSH_MS = 1_000;
 
 /** Per-symbol in-memory aggregation, flushed to SQLite once per second. */
 interface Agg {
-  cum: number; // cumulative messages received
+  cum: number; // messages seen this process, in memory — the rate's basis
   lastMsgAt: number | null;
   bid: number | null;
   ask: number | null;
@@ -61,7 +61,7 @@ export class Ingestor {
     return a;
   }
 
-  /** Write per-symbol message rate, cumulative count and latest bid/ask. */
+  /** Write per-symbol message rate and latest bid/ask. */
   private flushStats(): void {
     const now = Date.now();
     for (const symbol of config.symbols) {
@@ -73,7 +73,6 @@ export class Ingestor {
       try {
         updateStatus(symbol, {
           wsMsgRate: Math.round(rate * 10) / 10,
-          messageCount: a.cum,
           ...(a.lastMsgAt !== null ? { lastMessageAt: a.lastMsgAt } : {}),
           ...(a.bid !== null && a.ask !== null
             ? { bestBid: a.bid, bestAsk: a.ask, tickerUpdatedAt: a.tickerAt }
@@ -111,10 +110,11 @@ export class Ingestor {
 
     ws.on("message", (raw: WebSocket.RawData) => {
       try {
-        const text = raw.toString();
+        const msg = parseWsMessage(raw.toString());
+        if (!msg) return;
 
-        const kline = parseWsKline(text);
-        if (kline) {
+        if (msg.kind === "kline") {
+          const { kline } = msg;
           this.bump(kline.symbol);
           upsertKline(kline);
           updateStatus(kline.symbol, {
@@ -124,14 +124,12 @@ export class Ingestor {
           return;
         }
 
-        const ticker = parseWsBookTicker(text);
-        if (ticker) {
-          const a = this.bump(ticker.symbol);
-          if (a) {
-            a.bid = ticker.bid;
-            a.ask = ticker.ask;
-            a.tickerAt = Date.now();
-          }
+        const { ticker } = msg;
+        const a = this.bump(ticker.symbol);
+        if (a) {
+          a.bid = ticker.bid;
+          a.ask = ticker.ask;
+          a.tickerAt = Date.now();
         }
       } catch (err) {
         logError("[ws] message handling error:", err);

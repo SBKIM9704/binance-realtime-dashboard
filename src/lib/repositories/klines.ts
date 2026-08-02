@@ -201,14 +201,36 @@ const rollupCache = new Map<
   { gapsFilled: number; builtAt: number; from: number; candles: Candle[] }
 >();
 const ROLLUP_MAX_AGE_MS = 5 * 60 * 1000; // floor under retention pruning the oldest bucket
+// A sliding range legitimately opens a new window every bucket, so entries accrue
+// even with a stable key. Without a ceiling this Map is a leak, not a cache.
+const ROLLUP_MAX_ENTRIES = 64;
+
+/** Evict expired entries, then oldest-first, so the cache cannot grow unbounded. */
+function trimRollupCache(now: number): void {
+  if (rollupCache.size <= ROLLUP_MAX_ENTRIES) return;
+  for (const [k, v] of rollupCache) {
+    if (now - v.builtAt >= ROLLUP_MAX_AGE_MS) rollupCache.delete(k);
+  }
+  // Map iterates in insertion order, so the front is the least recently added.
+  for (const k of rollupCache.keys()) {
+    if (rollupCache.size <= ROLLUP_MAX_ENTRIES) break;
+    rollupCache.delete(k);
+  }
+}
 
 export function getCachedCandles(
   symbol: string,
   interval: string,
   bucketMs: number,
   limit: number,
-  from?: number,
+  rangeStart?: number,
 ): Candle[] {
+  // Callers derive `rangeStart` as `now - spanMs`, which is a different number on
+  // every request — keying on it raw meant this cache never hit once and grew by
+  // an entry per call forever. Snapping to the bucket boundary makes the key stable
+  // for the life of the bucket, and makes the oldest bucket returned a whole one
+  // rather than a partial that shifts under the reader every second.
+  const from = rangeStart != null ? Math.floor(rangeStart / bucketMs) * bucketMs : undefined;
   const key = `${symbol}|${interval}|${bucketMs}|${limit}|${from ?? ""}`;
   const gapsFilled = getGapsFilled(symbol);
   const hit = rollupCache.get(key);
@@ -223,6 +245,7 @@ export function getCachedCandles(
   if (!reusable) {
     const candles = getAggregatedCandles(symbol, interval, bucketMs, limit, from);
     rollupCache.set(key, { gapsFilled, builtAt: now, from: from ?? 0, candles });
+    trimRollupCache(now);
     return candles;
   }
 

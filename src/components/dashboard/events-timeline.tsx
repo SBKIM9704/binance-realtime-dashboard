@@ -12,7 +12,6 @@ const DOT: Record<PipelineEventType, string> = {
   backfill_start: "bg-[hsl(var(--muted-foreground))]",
   backfill_done: "bg-primary",
   gap_filled: "bg-[hsl(var(--warning))]",
-  reconcile: "bg-[hsl(var(--muted-foreground))]",
   error: "bg-[hsl(var(--danger))]",
 };
 

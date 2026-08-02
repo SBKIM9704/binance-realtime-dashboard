@@ -60,7 +60,6 @@ function migrate(db: DB): void {
       backfilled_count     INTEGER NOT NULL DEFAULT 0,
       gaps_detected        INTEGER NOT NULL DEFAULT 0,
       gaps_filled          INTEGER NOT NULL DEFAULT 0,
-      error_count          INTEGER NOT NULL DEFAULT 0,
       reconcile_last_run   INTEGER,
       updated_at           INTEGER NOT NULL DEFAULT 0
     );
@@ -96,8 +95,9 @@ function migrate(db: DB): void {
   `);
 
   // Additive migrations for pipeline_status columns introduced after v0.1.
+  // Columns dropped since (message_count, error_count) are simply no longer created:
+  // an existing DB keeps them, unread and harmless, rather than needing a rewrite.
   ensureColumns(db, "pipeline_status", {
-    message_count: "INTEGER NOT NULL DEFAULT 0",
     ws_msg_rate: "REAL NOT NULL DEFAULT 0",
     reconnect_count: "INTEGER NOT NULL DEFAULT 0",
     best_bid: "REAL",

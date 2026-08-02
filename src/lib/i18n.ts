@@ -1,6 +1,5 @@
 export type Lang = "ko" | "en";
 export const LANGS: Lang[] = ["ko", "en"];
-export const DEFAULT_LANG: Lang = "ko";
 
 /** UI string dictionary. `ko` is the default; `en` is the fallback for missing keys. */
 export const dict = {
@@ -99,7 +98,6 @@ export const dict = {
     "event.backfill_start": "백필 시작",
     "event.backfill_done": "백필 완료",
     "event.gap_filled": "결측 채움",
-    "event.reconcile": "정합",
     "event.error": "에러",
 
     "table.title": "캔들 데이터",
@@ -207,7 +205,6 @@ export const dict = {
     "event.backfill_start": "Backfill start",
     "event.backfill_done": "Backfill done",
     "event.gap_filled": "Gap filled",
-    "event.reconcile": "Reconcile",
     "event.error": "Error",
 
     "table.title": "Candles",

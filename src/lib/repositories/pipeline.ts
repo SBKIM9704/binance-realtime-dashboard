@@ -9,10 +9,8 @@ interface StatusRow {
   backfilled_count: number;
   gaps_detected: number;
   gaps_filled: number;
-  error_count: number;
   reconcile_last_run: number | null;
   updated_at: number;
-  message_count: number;
   ws_msg_rate: number;
   reconnect_count: number;
   best_bid: number | null;
@@ -29,10 +27,8 @@ function rowToStatus(r: StatusRow): PipelineStatus {
     backfilledCount: r.backfilled_count,
     gapsDetected: r.gaps_detected,
     gapsFilled: r.gaps_filled,
-    errorCount: r.error_count,
     reconcileLastRun: r.reconcile_last_run,
     updatedAt: r.updated_at,
-    messageCount: r.message_count,
     wsMsgRate: r.ws_msg_rate,
     reconnectCount: r.reconnect_count,
     bestBid: r.best_bid,
@@ -58,9 +54,7 @@ const COLUMN_MAP: Record<string, string> = {
   backfilledCount: "backfilled_count",
   gapsDetected: "gaps_detected",
   gapsFilled: "gaps_filled",
-  errorCount: "error_count",
   reconcileLastRun: "reconcile_last_run",
-  messageCount: "message_count",
   wsMsgRate: "ws_msg_rate",
   reconnectCount: "reconnect_count",
   bestBid: "best_bid",
@@ -84,15 +78,10 @@ export function updateStatus(symbol: string, patch: Partial<Omit<PipelineStatus,
     .run(params);
 }
 
-/** Atomically increment a counter column (e.g. gaps_filled, error_count). */
+/** Atomically increment a counter column (e.g. gaps_filled, reconnect_count). */
 export function incrementStatus(
   symbol: string,
-  column:
-    | "backfilledCount"
-    | "gapsDetected"
-    | "gapsFilled"
-    | "errorCount"
-    | "reconnectCount",
+  column: "backfilledCount" | "gapsDetected" | "gapsFilled" | "reconnectCount",
   by = 1,
 ): void {
   const col = COLUMN_MAP[column];
@@ -119,10 +108,34 @@ export function addEvent(event: Omit<PipelineEvent, "id">): void {
     .run(event);
 }
 
+interface EventRow {
+  id: number;
+  ts: number;
+  symbol: string;
+  type: string;
+  detail: string;
+  count: number;
+}
+
 export function getRecentEvents(limit: number): PipelineEvent[] {
-  return getDb()
-    .prepare("SELECT * FROM pipeline_events ORDER BY ts DESC, id DESC LIMIT ?")
-    .all(limit) as PipelineEvent[];
+  // Columns are listed and mapped rather than `SELECT *` cast straight to the type,
+  // as every other reader here does. The cast only worked because these column names
+  // happen to be single words; it would start returning undefined fields the moment
+  // a snake_case column joined the table, and do it silently.
+  const rows = getDb()
+    .prepare(
+      `SELECT id, ts, symbol, type, detail, count FROM pipeline_events
+       ORDER BY ts DESC, id DESC LIMIT ?`,
+    )
+    .all(limit) as EventRow[];
+  return rows.map((r) => ({
+    id: r.id,
+    ts: r.ts,
+    symbol: r.symbol,
+    type: r.type as PipelineEvent["type"],
+    detail: r.detail,
+    count: r.count,
+  }));
 }
 
 /** Delete pipeline events older than `cutoff` (epoch ms). Returns rows removed. */

@@ -192,34 +192,51 @@ interface WsBookTickerMessage {
   data: { s: string; b: string; a: string };
 }
 
-/** Parse a raw combined-stream bookTicker message, or null if irrelevant. */
-export function parseWsBookTicker(raw: string): BookTicker | null {
-  const msg = JSON.parse(raw) as Partial<WsBookTickerMessage>;
-  const d = msg.data;
-  if (!d || d.b === undefined || d.a === undefined || !d.s) return null;
-  return { symbol: d.s, bid: Number(d.b), ask: Number(d.a) };
-}
+/** A recognised combined-stream frame. `null` from the parser means "not for us". */
+export type WsMessage =
+  | { kind: "kline"; kline: Kline }
+  | { kind: "bookTicker"; ticker: BookTicker };
 
-/** Parse a raw combined-stream kline message into a Kline, or null if irrelevant. */
-export function parseWsKline(raw: string): Kline | null {
-  const msg = JSON.parse(raw) as Partial<WsKlineMessage>;
+/**
+ * Parse one combined-stream frame.
+ *
+ * A single entry point because the two stream types arrive interleaved on one
+ * socket: dispatching through separate `parseWsKline` / `parseWsBookTicker`
+ * helpers meant every bookTicker message — the high-frequency half of the feed —
+ * was JSON-parsed twice, once by the kline parser that rejected it and again by
+ * the one that accepted it.
+ */
+export function parseWsMessage(raw: string): WsMessage | null {
+  const msg = JSON.parse(raw) as Partial<WsKlineMessage & WsBookTickerMessage>;
   const d = msg.data;
-  if (!d || d.e !== "kline" || !d.k) return null;
-  const k = d.k;
-  return {
-    symbol: d.s,
-    interval: k.i,
-    openTime: k.t,
-    open: Number(k.o),
-    high: Number(k.h),
-    low: Number(k.l),
-    close: Number(k.c),
-    volume: Number(k.v),
-    closeTime: k.T,
-    quoteVolume: Number(k.q),
-    trades: k.n,
-    takerBuyBase: Number(k.V),
-    takerBuyQuote: Number(k.Q),
-    isFinal: k.x ? 1 : 0,
-  };
+  if (!d || !d.s) return null;
+
+  if (d.e === "kline" && d.k) {
+    const k = d.k;
+    return {
+      kind: "kline",
+      kline: {
+        symbol: d.s,
+        interval: k.i,
+        openTime: k.t,
+        open: Number(k.o),
+        high: Number(k.h),
+        low: Number(k.l),
+        close: Number(k.c),
+        volume: Number(k.v),
+        closeTime: k.T,
+        quoteVolume: Number(k.q),
+        trades: k.n,
+        takerBuyBase: Number(k.V),
+        takerBuyQuote: Number(k.Q),
+        isFinal: k.x ? 1 : 0,
+      },
+    };
+  }
+
+  if (d.b !== undefined && d.a !== undefined) {
+    return { kind: "bookTicker", ticker: { symbol: d.s, bid: Number(d.b), ask: Number(d.a) } };
+  }
+
+  return null;
 }

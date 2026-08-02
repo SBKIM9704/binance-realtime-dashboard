@@ -72,7 +72,8 @@ function runRetention(): void {
 /**
  * Bring the coarse history tiers up to date. Runs in the background — live
  * ingestion and the operational 1s backfill must not wait on nine years of hourly
- * candles — and repeats hourly so the tiers keep pace without their own WS feed.
+ * candles — and repeats every HISTORY_INTERVAL_MS so the tiers keep pace without
+ * their own WS feed.
  */
 async function runHistoryBackfill(): Promise<void> {
   if (config.historyTiers.length === 0) return;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { type Lang, type TKey, translate } from "@/lib/i18n";
 
 export type Theme = "dark" | "light";
@@ -11,7 +11,6 @@ interface AppContextValue {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: TKey, vars?: Record<string, string>) => string;
-  mounted: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -40,9 +39,6 @@ export function AppProviders({
 }) {
   const [theme, setThemeState] = useState<Theme>(initialTheme);
   const [lang, setLangState] = useState<Lang>(initialLang);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   const applyTheme = (next: Theme) => {
     setThemeState(next);
@@ -60,7 +56,7 @@ export function AppProviders({
   const t = (key: TKey, vars?: Record<string, string>) => translate(lang, key, vars);
 
   return (
-    <AppContext.Provider value={{ theme, toggleTheme, lang, setLang, t, mounted }}>
+    <AppContext.Provider value={{ theme, toggleTheme, lang, setLang, t }}>
       {children}
     </AppContext.Provider>
   );

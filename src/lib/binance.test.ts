@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWsKline, tupleToKline, type RawKlineTuple } from "./binance";
+import { parseWsMessage, tupleToKline, type RawKlineTuple } from "./binance";
 
 const TUPLE: RawKlineTuple = [
   1_700_000_000_000, // open time
@@ -45,7 +45,7 @@ describe("tupleToKline", () => {
   });
 });
 
-describe("parseWsKline", () => {
+describe("parseWsMessage", () => {
   const wsMessage = (x: boolean) =>
     JSON.stringify({
       stream: "btcusdt@kline_1m",
@@ -70,20 +70,36 @@ describe("parseWsKline", () => {
       },
     });
 
+  const bookTicker = JSON.stringify({
+    stream: "btcusdt@bookTicker",
+    data: { s: "BTCUSDT", b: "42000.10", a: "42000.11" },
+  });
+
   it("parses a live (forming) kline with isFinal = 0", () => {
-    const k = parseWsKline(wsMessage(false));
-    expect(k).not.toBeNull();
-    expect(k?.symbol).toBe("BTCUSDT");
-    expect(k?.close).toBe(42050.25);
-    expect(k?.isFinal).toBe(0);
+    const msg = parseWsMessage(wsMessage(false));
+    expect(msg?.kind).toBe("kline");
+    expect(msg).toMatchObject({
+      kind: "kline",
+      kline: { symbol: "BTCUSDT", close: 42050.25, isFinal: 0 },
+    });
   });
 
   it("marks a closed kline as isFinal = 1", () => {
-    expect(parseWsKline(wsMessage(true))?.isFinal).toBe(1);
+    const msg = parseWsMessage(wsMessage(true));
+    expect(msg).toMatchObject({ kind: "kline", kline: { isFinal: 1 } });
   });
 
-  it("returns null for a non-kline payload", () => {
+  // The two stream types share one socket, so the dispatch has to tell them apart
+  // from a single parse rather than by trying each parser in turn.
+  it("parses a bookTicker frame off the same socket", () => {
+    expect(parseWsMessage(bookTicker)).toEqual({
+      kind: "bookTicker",
+      ticker: { symbol: "BTCUSDT", bid: 42000.1, ask: 42000.11 },
+    });
+  });
+
+  it("returns null for a payload that is neither", () => {
     const other = JSON.stringify({ stream: "x", data: { e: "trade", s: "BTCUSDT" } });
-    expect(parseWsKline(other)).toBeNull();
+    expect(parseWsMessage(other)).toBeNull();
   });
 });
