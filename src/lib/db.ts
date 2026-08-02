@@ -75,6 +75,25 @@ function migrate(db: DB): void {
 
     CREATE INDEX IF NOT EXISTS idx_events_ts ON pipeline_events (ts DESC);
 
+    -- Live progress of each REST backfill range, one row per (symbol, interval).
+    -- Written by the collector as it paginates; read by the collector's own console
+    -- renderer and by the dashboard, so both describe the same fill from one source.
+    CREATE TABLE IF NOT EXISTS backfill_progress (
+      symbol      TEXT    NOT NULL,
+      interval    TEXT    NOT NULL,
+      kind        TEXT    NOT NULL DEFAULT 'live',
+      phase       TEXT    NOT NULL DEFAULT 'pending',
+      reason      TEXT    NOT NULL DEFAULT '',
+      range_start INTEGER NOT NULL DEFAULT 0,
+      range_end   INTEGER NOT NULL DEFAULT 0,
+      cursor_time INTEGER NOT NULL DEFAULT 0,
+      written     INTEGER NOT NULL DEFAULT 0,
+      pages       INTEGER NOT NULL DEFAULT 0,
+      started_at  INTEGER NOT NULL DEFAULT 0,
+      updated_at  INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (symbol, interval)
+    );
+
     -- Single-row (id = 1) snapshot of the collector process + REST usage.
     CREATE TABLE IF NOT EXISTS system_metrics (
       id                 INTEGER PRIMARY KEY CHECK (id = 1),
