@@ -43,7 +43,6 @@ export function MarketCard({
   const up = (changePct24h ?? 0) >= 0;
   const { t, lang } = useApp();
 
-  const base = symbol.replace("USDT", "");
   const ticks = spreadTicks(bid, ask, tickSizeFor(symbol));
   const quoteStale = quoteAge != null && quoteAge > QUOTE_STALE_MS;
   // Volatility is VOL_CANDLES samples of whichever tier answered, so the label
@@ -145,11 +144,7 @@ export function MarketCard({
         <MiniStat label={t("market.high24h")} value={fmtPrice(high24h)} />
         <MiniStat label={t("market.low24h")} value={fmtPrice(low24h)} />
         <MiniStat label={t("market.vwap")} value={fmtPrice(vwap24h)} />
-        <MiniStat
-          label={t("market.volume")}
-          value={fmtCompact(volume24h)}
-          unit={base}
-        />
+        <MiniStat label={t("market.volume")} value={fmtCompact(volume24h)} />
         {/* The window is in the label: this is a short-horizon estimate, sitting in
             a row of 24h figures where the reader would otherwise assume 24h. */}
         <MiniStat
@@ -161,13 +156,10 @@ export function MarketCard({
   );
 }
 
-function MiniStat({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="label">
-        {label}
-        {unit ? <span className="ml-1 normal-case tracking-normal">({unit})</span> : null}
-      </div>
+      <div className="label">{label}</div>
       <div className="tnum mt-0.5 text-sm text-foreground/90">{value}</div>
     </div>
   );
