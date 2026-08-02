@@ -33,7 +33,6 @@ import type { Candle } from "@/lib/types";
 
 const CHART_POINTS = 400; // candles loaded per view
 const TAIL_POINTS = 4; // buckets refreshed on each tick
-const POLL_MS = 1_000;
 const RESYNC_MS = 60_000; // full reload, so backfilled gaps show up
 
 interface CandleResponse {
@@ -140,6 +139,13 @@ export function PriceChart() {
   const [empty, setEmpty] = useState(false);
 
   const preset = rangePreset(range);
+  // `snapshot` is re-parsed from JSON each frame, so `snapshot.symbols` is a new
+  // array reference every second. Depending on it directly tore this effect down
+  // and re-ran a full-window load once a second — 29KB instead of the 448B tail.
+  const symbolsKey = snapshot.symbols.join(",");
+  /** Set by the view effect, called by the SSE tick below. */
+  const loadTailRef = useRef<(() => void) | null>(null);
+
   const intervals = useMemo(
     () =>
       preset
@@ -381,14 +387,28 @@ export function PriceChart() {
       setLatest(data.at(-1) ?? null);
     };
 
+    loadTailRef.current = () => void loadTail();
     void loadFull(!cached);
-    const timer = window.setInterval(loadTail, POLL_MS);
+
     return () => {
       cancelled = true;
       ac.abort();
-      window.clearInterval(timer);
+      loadTailRef.current = null;
     };
-  }, [symbol, interval, range, snapshot.symbols]);
+    // `snapshot.symbols` is read inside for prefetch; `symbolsKey` is its stable form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, interval, range, symbolsKey]);
+
+  // The chart advances on the SSE frame rather than a timer of its own.
+  //
+  // Two independent one-second clocks meant the price card and the chart's last
+  // candle could describe different seconds, and the chart kept polling REST after
+  // the stream died — while the ribbon said "연결 끊김" and dimmed everything.
+  // Sharing the stream's tick fixes both: one cadence, and when frames stop
+  // arriving `snapshot.ts` stops changing, so the chart stops too.
+  useEffect(() => {
+    loadTailRef.current?.();
+  }, [snapshot.ts]);
 
   return (
     <Panel
