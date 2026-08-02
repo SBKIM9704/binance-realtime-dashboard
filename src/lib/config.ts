@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COLLECTABLE_INTERVALS, INTERVAL_TO_MS } from "./intervals";
 
 /**
  * Centralised, validated runtime configuration.
@@ -14,7 +15,19 @@ const schema = z.object({
   RECONCILE_WINDOW_MS: z.coerce.number().positive().default(30 * 60 * 1000),
   DB_PATH: z.string().default("./data/market.db"),
   // Delete klines/events older than this many days (caps DB growth at 1s granularity).
+  // Only the collected interval is pruned; history tiers below are kept forever.
   RETENTION_DAYS: z.coerce.number().positive().default(7),
+
+  /**
+   * Coarse history kept alongside the 1s operational data, as `interval:days`
+   * pairs (`0` days = everything Binance has for the symbol).
+   *
+   * 1s cannot span real history — nine years of it is ~283M candles and ~25GB per
+   * symbol — so long ranges are served from coarser tiers instead. The default
+   * costs about 250 REST requests and ~20MB total for two symbols.
+   * Set to an empty string to disable history backfill entirely.
+   */
+  HISTORY_TIERS: z.string().default("1m:30,1h:0"),
 
   // --- REST rate-limit safeguards ---
   // Delay inserted between paginated backfill requests so large backfills never burst.
@@ -29,22 +42,42 @@ const schema = z.object({
 
 const parsed = schema.parse(process.env);
 
-/** Milliseconds per supported kline interval. */
-const INTERVAL_TO_MS: Record<string, number> = {
-  "1s": 1_000,
-  "1m": 60_000,
-  "3m": 180_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-};
-
-const intervalMs = INTERVAL_TO_MS[parsed.KLINE_INTERVAL];
-if (!intervalMs) {
+const collectable: readonly string[] = COLLECTABLE_INTERVALS;
+if (!collectable.includes(parsed.KLINE_INTERVAL)) {
   throw new Error(
-    `Unsupported KLINE_INTERVAL "${parsed.KLINE_INTERVAL}". Supported: ${Object.keys(INTERVAL_TO_MS).join(", ")}`,
+    `Unsupported KLINE_INTERVAL "${parsed.KLINE_INTERVAL}". Supported: ${collectable.join(", ")}`,
   );
 }
+const intervalMs = INTERVAL_TO_MS[parsed.KLINE_INTERVAL];
+
+/** One coarse history tier: which interval to store, and how far back. */
+export interface HistoryTier {
+  interval: string;
+  /** Days of history; `null` means everything the exchange has. */
+  days: number | null;
+}
+
+function parseHistoryTiers(spec: string): HistoryTier[] {
+  const tiers: HistoryTier[] = [];
+  for (const part of spec.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [interval, rawDays] = part.split(":").map((s) => s.trim());
+    if (!collectable.includes(interval)) {
+      throw new Error(
+        `HISTORY_TIERS: "${interval}" is not a collectable interval (${collectable.join(", ")})`,
+      );
+    }
+    if (interval === parsed.KLINE_INTERVAL) continue; // the base tier is not "history"
+    const days = Number(rawDays ?? 0);
+    if (!Number.isFinite(days) || days < 0) {
+      throw new Error(`HISTORY_TIERS: bad day count in "${part}"`);
+    }
+    tiers.push({ interval, days: days === 0 ? null : days });
+  }
+  // Finest first, so source selection can take the first tier that fits.
+  return tiers.sort((a, b) => INTERVAL_TO_MS[a.interval] - INTERVAL_TO_MS[b.interval]);
+}
+
+const historyTiers = parseHistoryTiers(parsed.HISTORY_TIERS);
 
 export const config = {
   ...parsed,
@@ -52,6 +85,12 @@ export const config = {
   symbols: parsed.SYMBOLS.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean),
   /** Duration of one candle in ms. */
   intervalMs,
+  /** Coarse history tiers, finest first. */
+  historyTiers,
+  /** Every stored interval, finest first: the collected one plus its history tiers. */
+  storedIntervals: [parsed.KLINE_INTERVAL, ...historyTiers.map((h) => h.interval)].sort(
+    (a, b) => INTERVAL_TO_MS[a] - INTERVAL_TO_MS[b],
+  ),
 };
 
 export type AppConfig = typeof config;

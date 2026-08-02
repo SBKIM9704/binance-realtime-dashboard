@@ -1,5 +1,6 @@
 import { fetchKlines, sleep } from "../lib/binance";
-import { config } from "../lib/config";
+import { config, type HistoryTier } from "../lib/config";
+import { INTERVAL_TO_MS } from "../lib/intervals";
 import { getMaxOpenTime, getMinOpenTime, upsertKlines } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
 import { log } from "./logger";
@@ -15,8 +16,9 @@ export async function fetchAndStoreRange(
   symbol: string,
   start: number,
   end: number,
+  interval: string = config.KLINE_INTERVAL,
 ): Promise<number> {
-  const interval = config.KLINE_INTERVAL;
+  const stepMs = INTERVAL_TO_MS[interval];
   let cursor = start;
   let written = 0;
   const now = Date.now();
@@ -33,7 +35,7 @@ export async function fetchAndStoreRange(
     written += upsertKlines(closed);
 
     const lastOpen = batch[batch.length - 1].openTime;
-    const nextCursor = lastOpen + config.intervalMs;
+    const nextCursor = lastOpen + stepMs;
     if (nextCursor <= cursor) break; // safety: no forward progress
     cursor = nextCursor;
 
@@ -85,5 +87,47 @@ export async function backfillSymbol(symbol: string): Promise<number> {
   if (newMax !== null) updateStatus(symbol, { lastKlineOpenTime: newMax });
   addEvent({ ts: Date.now(), symbol, type: "backfill_done", detail: reason, count: written });
   log(`[backfill] ${symbol}: wrote ${written} candles (${reason})`);
+  return written;
+}
+
+/**
+ * Fill one coarse history tier for a symbol, then keep it current.
+ *
+ * These tiers exist because the 1s operational data cannot span real history:
+ * nine years of BTCUSDT at 1s is ~283M candles. A coarse tier covers the same
+ * span for a rounding error — 1h since listing is ~78k rows — and long chart
+ * ranges are served from it instead.
+ *
+ * Extends backwards to the requested depth and forwards to now, so restarts and
+ * a deepened `HISTORY_TIERS` both converge without a separate migration.
+ */
+export async function backfillHistoryTier(symbol: string, tier: HistoryTier): Promise<number> {
+  const { interval, days } = tier;
+  const stepMs = INTERVAL_TO_MS[interval];
+  const now = Date.now();
+  // `null` days means "everything"; 0 is a safe floor since Binance clamps to listing.
+  const desiredStart = days === null ? 0 : now - days * 24 * 60 * 60 * 1000;
+
+  const minOpen = getMinOpenTime(symbol, interval);
+  const maxOpen = getMaxOpenTime(symbol, interval);
+  let written = 0;
+
+  // Older history first, so the deepest range becomes usable soonest.
+  if (minOpen === null) {
+    written += await fetchAndStoreRange(symbol, desiredStart, now, interval);
+  } else {
+    if (desiredStart < minOpen) {
+      written += await fetchAndStoreRange(symbol, desiredStart, minOpen - stepMs, interval);
+    }
+    // Only reach forward once a bucket has actually closed. Without this guard a
+    // frequent top-up spends a REST call per pass re-fetching the in-progress
+    // bucket, which `fetchAndStoreRange` discards anyway.
+    const lastClosedBucket = Math.floor(now / stepMs) * stepMs - stepMs;
+    if (maxOpen !== null && lastClosedBucket >= maxOpen + stepMs) {
+      written += await fetchAndStoreRange(symbol, maxOpen + stepMs, now, interval);
+    }
+  }
+
+  if (written > 0) log(`[history] ${symbol} ${interval}: wrote ${written} candles`);
   return written;
 }

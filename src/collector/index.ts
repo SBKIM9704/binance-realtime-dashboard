@@ -1,8 +1,17 @@
 import "dotenv/config";
 import { config } from "../lib/config";
 import { getDb } from "../lib/db";
-import { pruneKlinesBefore } from "../lib/repositories/klines";
-import { addEvent, ensureStatus, pruneEventsBefore, updateStatus } from "../lib/repositories/pipeline";
+import { countKlines, getRecentCloses, pruneKlinesBefore } from "../lib/repositories/klines";
+import { backfillHistoryTier } from "./backfill";
+import { printBanner, printReady } from "./banner";
+import {
+  addEvent,
+  ensureStatus,
+  getAllStatus,
+  getEventCountSince,
+  pruneEventsBefore,
+  updateStatus,
+} from "../lib/repositories/pipeline";
 import { getSystemMetrics, updateSystemProcess } from "../lib/repositories/system";
 import { Ingestor } from "./ingest";
 import { log, logError } from "./logger";
@@ -10,6 +19,10 @@ import { reconcileAll } from "./reconcile";
 
 const SYSTEM_SAMPLE_MS = 3_000;
 const RETENTION_INTERVAL_MS = 60 * 60 * 1000;
+// Runs often so the finest history tier stays current: the 24h market figures are
+// aggregated from it, and an hour of missing candles showed up as ~5% low volume.
+// The closed-bucket guard in backfillHistoryTier keeps idle passes free.
+const HISTORY_INTERVAL_MS = 60 * 1000;
 
 /** Periodically sample the collector process (CPU/RAM/uptime) + REST call rate. */
 function startSystemSampler(): NodeJS.Timeout {
@@ -56,9 +69,61 @@ function runRetention(): void {
   }
 }
 
+/**
+ * Bring the coarse history tiers up to date. Runs in the background — live
+ * ingestion and the operational 1s backfill must not wait on nine years of hourly
+ * candles — and repeats hourly so the tiers keep pace without their own WS feed.
+ */
+async function runHistoryBackfill(): Promise<void> {
+  if (config.historyTiers.length === 0) return;
+  for (const tier of config.historyTiers) {
+    for (const symbol of config.symbols) {
+      try {
+        await backfillHistoryTier(symbol, tier);
+      } catch (err) {
+        logError(`[history] ${symbol} ${tier.interval} backfill failed:`, err);
+      }
+    }
+  }
+}
+
+/**
+ * Wait for backfill to finish, then print what landed.
+ *
+ * Backfill runs in the background off the WS 'open' handler, so there is no single
+ * completion callback to hang this on. Waiting for the row count to stop growing
+ * does not work either — the live stream adds a row per second per symbol forever,
+ * so it never settles. The `backfill_done` events the pipeline already emits are
+ * the actual signal: one per symbol, written when that symbol's fill returns.
+ */
+async function reportWhenSettled(startedAt: number): Promise<void> {
+  const POLL_MS = 500;
+  const TIMEOUT_MS = 5 * 60 * 1000;
+
+  while (Date.now() - startedAt < TIMEOUT_MS) {
+    if (getEventCountSince(["backfill_done"], startedAt) >= config.symbols.length) break;
+    await new Promise((r) => setTimeout(r, POLL_MS));
+  }
+
+  const statuses = new Map(getAllStatus().map((s) => [s.symbol, s]));
+  printReady(
+    config.symbols.map((symbol) => {
+      const st = statuses.get(symbol);
+      return {
+        symbol,
+        records: countKlines(symbol, config.KLINE_INTERVAL),
+        closes: getRecentCloses(symbol, config.KLINE_INTERVAL, 240).map((p) => p.close),
+        gapsFilled: st?.gapsFilled ?? 0,
+        gapsDetected: st?.gapsDetected ?? 0,
+      };
+    }),
+    Date.now() - startedAt,
+  );
+}
+
 async function main(): Promise<void> {
-  log("[collector] starting");
-  log(`[collector] symbols=${config.symbols.join(",")} interval=${config.KLINE_INTERVAL}`);
+  const startedAt = Date.now();
+  printBanner();
 
   // Open DB (runs migrations), ensure status rows, trim old data on boot.
   getDb();
@@ -70,6 +135,8 @@ async function main(): Promise<void> {
   const ingestor = new Ingestor();
   ingestor.start();
 
+  void reportWhenSettled(startedAt).catch((err) => logError("[collector] ready report failed:", err));
+
   // Periodic reconciler, process sampler, and retention pruning.
   const reconcileTimer = setInterval(() => {
     reconcileAll().catch((err) => logError("[collector] reconcile pass failed:", err));
@@ -77,11 +144,17 @@ async function main(): Promise<void> {
   const systemTimer = startSystemSampler();
   const retentionTimer = setInterval(runRetention, RETENTION_INTERVAL_MS);
 
+  void runHistoryBackfill();
+  const historyTimer = setInterval(() => {
+    runHistoryBackfill().catch((err) => logError("[history] pass failed:", err));
+  }, HISTORY_INTERVAL_MS);
+
   const shutdown = (signal: string) => {
     log(`[collector] ${signal} received, shutting down`);
     clearInterval(reconcileTimer);
     clearInterval(systemTimer);
     clearInterval(retentionTimer);
+    clearInterval(historyTimer);
     ingestor.stop();
     // Synchronously mark the pipeline offline so the dashboard reflects the stop
     // even on an abrupt exit (the async ws 'close' event may not fire in time).
