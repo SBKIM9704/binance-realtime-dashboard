@@ -12,7 +12,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Binance](https://img.shields.io/badge/Binance-REST%20%2B%20WebSocket-F0B90B?logo=binance&logoColor=black)](https://binance-docs.github.io/apidocs/spot/en/)
-[![tests](https://img.shields.io/badge/tests-49%20passing-3FB950)](#-동작-검증)
+[![CI](https://github.com/SBKIM9704/binance-realtime-dashboard/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/SBKIM9704/binance-realtime-dashboard/actions/workflows/ci.yml)
 
 [빠른 시작](#-빠른-시작) · [요구사항 충족](#-과제-요구사항-충족) · [주요 기능](#-주요-기능) · [아키텍처](#-아키텍처) · [설계 결정](#-핵심-설계-결정) · [문서](#-문서)
 
@@ -314,6 +314,7 @@ BTCUSDT 9년치 1초봉은 약 **2억 8천만 개, 25GB**입니다. 그래서 �
 | `npm run build` | 성공 (2 페이지 + 4 API 라우트) |
 | `npm run typecheck` | 통과 |
 | `npm test` | **49 tests 통과** |
+| CI (GitHub Actions) | `typecheck` · `test` · `build`를 push·PR마다 실행 |
 
 > 테스트는 네트워크 없이 순수 도메인 로직만 검증합니다 — gap 계산 · 지표 계산 · Binance 파서 ·
 > SQL 롤업 · 티어 선택 · 스파크라인. API 라우트와 컴포넌트는 자동 검증 범위 밖입니다.
@@ -432,7 +433,6 @@ src/
 - [ ] **알림 (Slack Incoming Webhook)** — 임계 초과가 일정 시간 지속될 때 통지.
       임계값은 [`thresholds.ts`](src/lib/thresholds.ts)에 이미 한 곳으로 모여 있어 판정 로직을
       재사용할 수 있고, 중복 억제(같은 상태 반복 통지 방지)가 실제 작업 대부분입니다
-- [ ] **CI (GitHub Actions)** — `typecheck` · `test` · `build`를 PR마다 실행
 - [ ] **`docker-compose` 원커맨드 실행** — collector + web을 한 번에 기동
 - [ ] **심볼 동적 추가** — 현재는 `SYMBOLS` 환경변수 변경 후 재시작이 필요합니다
 - [ ] **SSE 스냅샷을 구독 심볼로 좁히기** — 프레임에 전 심볼이 실려 나갑니다
