@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { buildStreamUrl, parseWsBookTicker, parseWsKline } from "../lib/binance";
+import { buildStreamUrl, parseWsMessage } from "../lib/binance";
 import { config } from "../lib/config";
 import { upsertKline } from "../lib/repositories/klines";
 import { addEvent, incrementStatus, updateStatus } from "../lib/repositories/pipeline";
@@ -111,10 +111,11 @@ export class Ingestor {
 
     ws.on("message", (raw: WebSocket.RawData) => {
       try {
-        const text = raw.toString();
+        const msg = parseWsMessage(raw.toString());
+        if (!msg) return;
 
-        const kline = parseWsKline(text);
-        if (kline) {
+        if (msg.kind === "kline") {
+          const { kline } = msg;
           this.bump(kline.symbol);
           upsertKline(kline);
           updateStatus(kline.symbol, {
@@ -124,14 +125,12 @@ export class Ingestor {
           return;
         }
 
-        const ticker = parseWsBookTicker(text);
-        if (ticker) {
-          const a = this.bump(ticker.symbol);
-          if (a) {
-            a.bid = ticker.bid;
-            a.ask = ticker.ask;
-            a.tickerAt = Date.now();
-          }
+        const { ticker } = msg;
+        const a = this.bump(ticker.symbol);
+        if (a) {
+          a.bid = ticker.bid;
+          a.ask = ticker.ask;
+          a.tickerAt = Date.now();
         }
       } catch (err) {
         logError("[ws] message handling error:", err);
