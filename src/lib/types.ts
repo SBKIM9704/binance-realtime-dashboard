@@ -26,10 +26,9 @@ export interface PipelineStatus {
   backfilledCount: number;
   gapsDetected: number;
   gapsFilled: number;
-  errorCount: number;
   reconcileLastRun: number | null;
+  /** When the collector last wrote this row — its heartbeat. */
   updatedAt: number;
-  messageCount: number;
   wsMsgRate: number;
   reconnectCount: number;
   bestBid: number | null;

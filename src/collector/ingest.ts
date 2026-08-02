@@ -12,7 +12,7 @@ const STATS_FLUSH_MS = 1_000;
 
 /** Per-symbol in-memory aggregation, flushed to SQLite once per second. */
 interface Agg {
-  cum: number; // cumulative messages received
+  cum: number; // messages seen this process, in memory — the rate's basis
   lastMsgAt: number | null;
   bid: number | null;
   ask: number | null;
@@ -61,7 +61,7 @@ export class Ingestor {
     return a;
   }
 
-  /** Write per-symbol message rate, cumulative count and latest bid/ask. */
+  /** Write per-symbol message rate and latest bid/ask. */
   private flushStats(): void {
     const now = Date.now();
     for (const symbol of config.symbols) {
@@ -73,7 +73,6 @@ export class Ingestor {
       try {
         updateStatus(symbol, {
           wsMsgRate: Math.round(rate * 10) / 10,
-          messageCount: a.cum,
           ...(a.lastMsgAt !== null ? { lastMessageAt: a.lastMsgAt } : {}),
           ...(a.bid !== null && a.ask !== null
             ? { bestBid: a.bid, bestAsk: a.ask, tickerUpdatedAt: a.tickerAt }

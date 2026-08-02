@@ -9,10 +9,8 @@ interface StatusRow {
   backfilled_count: number;
   gaps_detected: number;
   gaps_filled: number;
-  error_count: number;
   reconcile_last_run: number | null;
   updated_at: number;
-  message_count: number;
   ws_msg_rate: number;
   reconnect_count: number;
   best_bid: number | null;
@@ -29,10 +27,8 @@ function rowToStatus(r: StatusRow): PipelineStatus {
     backfilledCount: r.backfilled_count,
     gapsDetected: r.gaps_detected,
     gapsFilled: r.gaps_filled,
-    errorCount: r.error_count,
     reconcileLastRun: r.reconcile_last_run,
     updatedAt: r.updated_at,
-    messageCount: r.message_count,
     wsMsgRate: r.ws_msg_rate,
     reconnectCount: r.reconnect_count,
     bestBid: r.best_bid,
@@ -58,9 +54,7 @@ const COLUMN_MAP: Record<string, string> = {
   backfilledCount: "backfilled_count",
   gapsDetected: "gaps_detected",
   gapsFilled: "gaps_filled",
-  errorCount: "error_count",
   reconcileLastRun: "reconcile_last_run",
-  messageCount: "message_count",
   wsMsgRate: "ws_msg_rate",
   reconnectCount: "reconnect_count",
   bestBid: "best_bid",
@@ -84,15 +78,10 @@ export function updateStatus(symbol: string, patch: Partial<Omit<PipelineStatus,
     .run(params);
 }
 
-/** Atomically increment a counter column (e.g. gaps_filled, error_count). */
+/** Atomically increment a counter column (e.g. gaps_filled, reconnect_count). */
 export function incrementStatus(
   symbol: string,
-  column:
-    | "backfilledCount"
-    | "gapsDetected"
-    | "gapsFilled"
-    | "errorCount"
-    | "reconnectCount",
+  column: "backfilledCount" | "gapsDetected" | "gapsFilled" | "reconnectCount",
   by = 1,
 ): void {
   const col = COLUMN_MAP[column];

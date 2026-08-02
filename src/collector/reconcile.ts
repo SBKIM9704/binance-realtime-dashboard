@@ -6,9 +6,10 @@ import { fetchAndStoreRange } from "./backfill";
 import { log, logError } from "./logger";
 
 /**
- * Scan the recent window for missing 1m buckets and refill them from REST.
- * This self-healing loop covers transient WS drops that the reconnect backfill
- * might miss, and guarantees data completeness independent of the live stream.
+ * Scan the recent window for missing buckets at the collected interval
+ * (`KLINE_INTERVAL`, 1s by default) and refill them from REST. This self-healing
+ * loop covers transient WS drops that the reconnect backfill might miss, and
+ * guarantees data completeness independent of the live stream.
  */
 export async function reconcileSymbol(symbol: string): Promise<void> {
   const interval = config.KLINE_INTERVAL;
@@ -57,7 +58,9 @@ export async function reconcileAll(): Promise<void> {
       await reconcileSymbol(symbol);
     } catch (err) {
       logError(`[reconcile] ${symbol} failed:`, err);
-      incrementStatus(symbol, "errorCount");
+      // The event row is the record of this failure: it carries the message, and
+      // `errorsLastMin` counts it. A parallel per-symbol counter said less and
+      // nothing on the dashboard read it.
       addEvent({
         ts: Date.now(),
         symbol,
