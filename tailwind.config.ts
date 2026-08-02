@@ -56,15 +56,10 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(8px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
-        ticker: {
-          "0%": { backgroundColor: "hsl(var(--flash) / 0.18)" },
-          "100%": { backgroundColor: "transparent" },
-        },
       },
       animation: {
         "pulse-dot": "pulse-dot 1.4s ease-in-out infinite",
         "fade-up": "fade-up 0.5s ease-out both",
-        ticker: "ticker 0.6s ease-out",
       },
     },
   },

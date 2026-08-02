@@ -7,7 +7,7 @@ export function LiveDot({ live, className }: { live: boolean; className?: string
       <span
         className={cn(
           "absolute inline-flex h-full w-full rounded-full",
-          live ? "animate-pulse-dot bg-primary" : "bg-muted-foreground/50",
+          live ? "bg-primary motion-safe:animate-pulse-dot" : "bg-muted-foreground/50",
         )}
       />
     </span>

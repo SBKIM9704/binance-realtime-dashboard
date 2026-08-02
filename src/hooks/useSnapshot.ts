@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DashboardSnapshot } from "@/lib/types";
 
 /** A frame older than this is no longer describing the present. */
@@ -28,11 +28,9 @@ export function useSnapshot(): SnapshotState {
     connected: false,
     receivedAt: null,
   });
-  const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const es = new EventSource("/api/stream");
-    esRef.current = es;
 
     es.onopen = () => setState((s) => ({ ...s, connected: true }));
     es.onmessage = (e) => {

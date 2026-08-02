@@ -31,7 +31,6 @@
     --danger: 2 68% 50%;
     --warning: 35 88% 44%;
     --info: 214 78% 46%; /* KR candle convention: blue = down */
-    --flash: 38 92% 46%;
 
     --radius: 0.375rem;
   }
@@ -64,7 +63,6 @@
     --danger: 2 74% 60%;
     --warning: 38 92% 56%;
     --info: 212 85% 54%;
-    --flash: 45 96% 56%;
   }
 
   * {

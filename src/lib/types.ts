@@ -57,7 +57,6 @@ export type PipelineEventType =
   | "backfill_start"
   | "backfill_done"
   | "gap_filled"
-  | "reconcile"
   | "error";
 
 export interface PipelineEvent {
