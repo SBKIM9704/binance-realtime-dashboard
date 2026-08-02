@@ -108,10 +108,34 @@ export function addEvent(event: Omit<PipelineEvent, "id">): void {
     .run(event);
 }
 
+interface EventRow {
+  id: number;
+  ts: number;
+  symbol: string;
+  type: string;
+  detail: string;
+  count: number;
+}
+
 export function getRecentEvents(limit: number): PipelineEvent[] {
-  return getDb()
-    .prepare("SELECT * FROM pipeline_events ORDER BY ts DESC, id DESC LIMIT ?")
-    .all(limit) as PipelineEvent[];
+  // Columns are listed and mapped rather than `SELECT *` cast straight to the type,
+  // as every other reader here does. The cast only worked because these column names
+  // happen to be single words; it would start returning undefined fields the moment
+  // a snake_case column joined the table, and do it silently.
+  const rows = getDb()
+    .prepare(
+      `SELECT id, ts, symbol, type, detail, count FROM pipeline_events
+       ORDER BY ts DESC, id DESC LIMIT ?`,
+    )
+    .all(limit) as EventRow[];
+  return rows.map((r) => ({
+    id: r.id,
+    ts: r.ts,
+    symbol: r.symbol,
+    type: r.type as PipelineEvent["type"],
+    detail: r.detail,
+    count: r.count,
+  }));
 }
 
 /** Delete pipeline events older than `cutoff` (epoch ms). Returns rows removed. */
