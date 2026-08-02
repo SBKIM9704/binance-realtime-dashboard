@@ -10,7 +10,10 @@ const schema = z.object({
   BINANCE_WS_BASE: z.string().default("wss://stream.binance.com:9443"),
   SYMBOLS: z.string().default("BTCUSDT,ETHUSDT"),
   KLINE_INTERVAL: z.string().default("1s"),
-  BACKFILL_DAYS: z.coerce.number().positive().default(3),
+  // 1초봉 하루치가 심볼당 86,400봉(87 REST 페이지)이다. 이 값이 최초 실행 시간을 지배하므로
+  // 기본은 하루로 둔다 — 짧은 기간 차트가 필요로 하는 구간을 덮으면서(가장 짧은 프리셋이 1시간),
+  // 그보다 긴 범위는 어차피 코스 히스토리 티어가 서빙한다.
+  BACKFILL_DAYS: z.coerce.number().positive().default(1),
   RECONCILE_INTERVAL_MS: z.coerce.number().positive().default(60_000),
   RECONCILE_WINDOW_MS: z.coerce.number().positive().default(30 * 60 * 1000),
   DB_PATH: z.string().default("./data/market.db"),
