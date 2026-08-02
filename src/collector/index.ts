@@ -12,9 +12,11 @@ import {
   pruneEventsBefore,
   updateStatus,
 } from "../lib/repositories/pipeline";
+import { clearBackfillTasks, registerPendingBackfill } from "../lib/repositories/backfill";
 import { getSystemMetrics, updateSystemProcess } from "../lib/repositories/system";
 import { Ingestor } from "./ingest";
 import { log, logError } from "./logger";
+import { ProgressConsole } from "./progress";
 import { reconcileAll } from "./reconcile";
 
 const SYSTEM_SAMPLE_MS = 3_000;
@@ -131,6 +133,17 @@ async function main(): Promise<void> {
   for (const symbol of config.symbols) ensureStatus(symbol);
   runRetention();
 
+  // Publish the fill plan before any of it starts, so the console and the dashboard
+  // can show the whole cold start from the first frame instead of discovering it
+  // one symbol at a time. Rows from the previous process describe nothing.
+  clearBackfillTasks();
+  for (const symbol of config.symbols) registerPendingBackfill(symbol, config.KLINE_INTERVAL, "live");
+  for (const tier of config.historyTiers) {
+    for (const symbol of config.symbols) registerPendingBackfill(symbol, tier.interval, "history");
+  }
+  const progress = new ProgressConsole();
+  progress.start();
+
   // Live ingestion first: the WS 'open' handler backfills first-run/gap history
   // in the background, so live candles appear immediately (important at 1s).
   const ingestor = new Ingestor();
@@ -151,6 +164,7 @@ async function main(): Promise<void> {
   }, HISTORY_INTERVAL_MS);
 
   const shutdown = (signal: string) => {
+    progress.stop(); // restores the cursor before anything else prints
     log(`[collector] ${signal} received, shutting down`);
     clearInterval(reconcileTimer);
     clearInterval(systemTimer);
