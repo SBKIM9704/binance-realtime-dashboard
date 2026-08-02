@@ -3,7 +3,7 @@
 import { useApp } from "@/components/providers";
 import { Badge } from "@/components/ui/badge";
 import { fmtClock, fmtDuration, fmtInt, fmtTimeAgo } from "@/lib/format";
-import { errorRateTier, lagTier, msgRateTier, recoveryTier } from "@/lib/thresholds";
+import { THRESHOLD_LABEL, errorRateTier, lagTier, msgRateTier, recoveryTier } from "@/lib/thresholds";
 import type { DashboardSnapshot } from "@/lib/types";
 import { LiveDot } from "./live-dot";
 import { Stat } from "./stat";
@@ -14,6 +14,7 @@ export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: 
   const status = snapshot.status;
 
   const totalRecords = status.reduce((a, s) => a + s.totalRecords, 0);
+  const liveRecords = status.reduce((a, s) => a + s.liveRecords, 0);
   const backfilled = status.reduce((a, s) => a + s.backfilledCount, 0);
   const gapsFilled = status.reduce((a, s) => a + s.gapsFilled, 0);
   const gapsDetected = status.reduce((a, s) => a + s.gapsDetected, 0);
@@ -24,7 +25,7 @@ export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: 
 
   return (
     <div>
-      <div className="label mb-2">{t("pipeline.title")}</div>
+      <h2 className="label mb-2">{t("pipeline.title")}</h2>
 
       {/* Per-symbol ingestion health */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-4">
@@ -66,12 +67,20 @@ export function OpsStrip({ snapshot, now }: { snapshot: DashboardSnapshot; now: 
           {fmtInt(gapsDetected)} / {fmtInt(gapsFilled)}
         </Stat>
         <Stat label={t("pipeline.reconnect")}>{fmtInt(reconnects)}</Stat>
-        <Stat label={t("pipeline.errorsPerMin")} tier={errorRateTier(snapshot.system.errorsLastMin)}>
+        <Stat
+          label={t("pipeline.errorsPerMin")}
+          tier={errorRateTier(snapshot.system.errorsLastMin)}
+          threshold={THRESHOLD_LABEL.errorRate}
+        >
           {fmtInt(snapshot.system.errorsLastMin)}
         </Stat>
         <Stat label={t("ops.backfilled")}>{fmtInt(backfilled)}</Stat>
-        <Stat label={t("ops.totalRecords")}>{fmtInt(totalRecords)}</Stat>
-        <Stat label={t("ops.lastReconcile")}>{fmtTimeAgo(lastReconcile, now)}</Stat>
+        <Stat label={t("ops.totalRecords")} threshold={t("ops.liveRecords", { n: fmtInt(liveRecords) })}>
+          {fmtInt(totalRecords)}
+        </Stat>
+        <Stat label={t("ops.lastReconcile")}>
+          {fmtTimeAgo(lastReconcile, now, (age) => t("time.ago", { age }))}
+        </Stat>
       </div>
     </div>
   );

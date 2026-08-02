@@ -14,7 +14,7 @@ export function SystemStrip({ system }: { system: DashboardSnapshot["system"] })
 
   return (
     <div>
-      <div className="label mb-2">{t("system.title")}</div>
+      <h2 className="label mb-2">{t("system.title")}</h2>
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4 lg:grid-cols-8">
         <Stat label={t("system.cpu")}>{system.cpuPct.toFixed(1)}%</Stat>
         <Stat label={t("system.ram")}>{fmtBytes(system.rssBytes)}</Stat>

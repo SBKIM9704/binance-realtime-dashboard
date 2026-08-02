@@ -30,6 +30,7 @@
     --success: 152 55% 36%;
     --danger: 2 68% 50%;
     --warning: 35 88% 44%;
+    --info: 214 78% 46%; /* KR candle convention: blue = down */
     --flash: 38 92% 46%;
 
     --radius: 0.375rem;
@@ -62,11 +63,21 @@
     --success: 152 58% 46%;
     --danger: 2 74% 60%;
     --warning: 38 92% 56%;
+    --info: 212 85% 54%;
     --flash: 45 96% 56%;
   }
 
   * {
     @apply border-border;
+  }
+
+  /*
+    One focus ring for the whole app. The `--ring` token existed from the start and
+    nothing referenced it, so every control was keyboard-reachable and keyboard-
+    invisible. Applied at :focus-visible so pointer users never see it.
+  */
+  :where(a, button, [role="button"], input, select, textarea, summary):focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 
   body {

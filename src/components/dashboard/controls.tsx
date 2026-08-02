@@ -19,7 +19,7 @@ export function Controls() {
             onClick={() => setLang(l)}
             aria-pressed={lang === l}
             className={cn(
-              "px-2 py-1 text-[11px] font-medium uppercase tracking-[0.12em] transition-colors",
+              "min-h-6 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] transition-colors",
               lang === l
                 ? "bg-primary/15 text-primary"
                 : "text-muted-foreground hover:text-foreground",
@@ -35,7 +35,7 @@ export function Controls() {
         onClick={toggleTheme}
         aria-label={t("header.theme")}
         title={t("header.theme")}
-        className="flex h-[26px] w-[26px] items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-foreground"
+        className="flex h-6 w-6 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-foreground"
       >
         {theme === "dark" ? <Moon size={14} /> : <Sun size={14} />}
       </button>

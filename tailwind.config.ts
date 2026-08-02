@@ -34,6 +34,7 @@ const config: Config = {
         success: "hsl(var(--success))",
         danger: "hsl(var(--danger))",
         warning: "hsl(var(--warning))",
+        info: "hsl(var(--info))",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -13,7 +13,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ARIA Desk — Binance Market Dashboard",
+  title: "Market Desk — Binance 실시간 마켓 대시보드",
   description: "실시간 비트코인·이더리움 마켓 대시보드 (Binance)",
 };
 
