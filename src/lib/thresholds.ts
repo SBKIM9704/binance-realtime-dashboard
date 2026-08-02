@@ -1,7 +1,7 @@
 /**
  * Alert thresholds — the single source of truth for "when is action needed".
  * Each function maps a raw metric to a health tier so the UI can colour it
- * green / amber / red. Documented in docs/metrics.md.
+ * green / amber / red. Documented in docs/dashboard-metrics.md.
  */
 export type Tier = "ok" | "warn" | "crit";
 

@@ -21,7 +21,7 @@ import { tierColor, tierDot, tierLabel, worstTier } from "./stat";
  * The rest of this view is 19 tiles at identical weight, which means it has no
  * primary — the reader has to read all of them to find the one that matters. These
  * four carry the thresholds the README advertises, printed beside the value so the
- * colour contract is verifiable on screen instead of in docs/metrics.md.
+ * colour contract is verifiable on screen instead of in docs/dashboard-metrics.md.
  */
 export function OpsHero({ snapshot }: { snapshot: DashboardSnapshot }) {
   const { t } = useApp();

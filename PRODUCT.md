@@ -39,9 +39,11 @@ gap 탐지 + REST 백필을 단일 메커니즘으로 처리해 "최초 실행"�
 
 ## Capabilities and Constraints
 
-- 수집 인터벌은 기본 1초봉(`KLINE_INTERVAL`)이며 단일 인터벌만 저장한다. 더 큰 봉(5초~1시간)은
-  조회 시점에 SQL로 롤업한다(`/api/candles`) — 화면에 인터벌을 추가해도 수집·스키마는 불변.
-- `RETENTION_DAYS`(기본 7일) 지난 캔들/이벤트는 자동 정리된다.
+- 수집 인터벌은 기본 1초봉(`KLINE_INTERVAL`)이다. 더 큰 봉은 조회 시점에 SQL로 롤업한다
+  (`/api/candles`) — 화면에 인터벌을 추가해도 수집·스키마는 불변.
+- 긴 기간 차트와 24h 집계를 위해 코스 히스토리 티어를 함께 보관한다(`HISTORY_TIERS`,
+  기본 1분봉 30일 + 1시간봉 상장일부터).
+- `RETENTION_DAYS`(기본 7일)는 **수집 인터벌에만** 적용되고 히스토리 티어는 보존된다.
 - Binance REST weight 예산(6000/분)은 소프트 임계로 자체 페이싱한다.
 - 한국어 기본, 영어 전환 가능. 다크 기본, 라이트 전환 가능. 둘 다 쿠키 저장이라 SSR 첫 렌더가 정확하다.
 - 임계값 색상 코딩은 확정된 계약이다: Lag(<5s/5–30s/>30s), Recovery(100%/95–99%/<95%),
@@ -49,14 +51,14 @@ gap 탐지 + REST 백필을 단일 메커니즘으로 처리해 "최초 실행"�
 
 ## Brand Commitments
 
-- 제품명 **Aria Desk**, 데이터 출처 표기 **Binance**.
+- 제품명 **Market Desk**, 데이터 출처 표기 **Binance**.
 - 한국어가 기본 언어이며, 국내 거래소 관례를 따른다 — 캔들 상승은 빨강, 하락은 파랑
   (영어 UI에서는 초록/빨강). 이 관례를 뒤집으면 등락이 반대로 읽힌다.
 
 ## Evidence on Hand
 
 - `README.md` — 과제 정의, 기능표, 대시보드 지표 3-tier(System → Pipeline → Market), 임계값 표.
-- `docs/metrics.md` — 지표 정의·선택 근거·임계값. `docs/rate-limits.md` — REST 사용량 안전장치.
+- `docs/dashboard-metrics.md` — 지표 정의·선택 근거·임계값. `docs/rate-limits.md` — REST 사용량 안전장치.
 - 실제 수집된 SQLite 데이터가 `data/market.db`에 존재한다(BTCUSDT·ETHUSDT 1초봉).
 - 고객 사례·벤치마크·가격·SLA 같은 주장은 존재하지 않는다. 지어내면 안 된다.
 
