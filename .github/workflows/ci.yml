@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# 같은 브랜치에 연속 push가 나면 앞선 실행은 취소한다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # README가 요구하는 하한. better-sqlite3는 이 버전대의 prebuild를 받는다.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # 네트워크도 DB도 필요 없다 — 읽기 라우트는 force-dynamic이라
+      # 빌드 시점에 SQLite를 열지 않는다.
+      - name: Build
+        run: npm run build
