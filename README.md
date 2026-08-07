@@ -94,7 +94,7 @@ npm run dev               # 수집기 + 대시보드 동시 실행
 |---|---|---|
 | **Part 1** · BTCUSDT·ETHUSDT 실시간 수집 | WebSocket 결합 스트림 (`kline_1s` + `bookTicker`) | [`collector/ingest.ts`](src/collector/ingest.ts) |
 | **Part 1** · 최초 실행 시 백필 | 저장 이력 없음 → `BACKFILL_DAYS`치 전체 백필 (`first-run`) | [`collector/backfill.ts`](src/collector/backfill.ts) |
-| **Part 1** · 재시작 후 누락 구간 백필 | 마지막 캔들 ~ 현재 구간만 채움 (`restart-gap`) + 주기적 reconciler | [`backfill.ts`](src/collector/backfill.ts) · [`reconcile.ts`](src/collector/reconcile.ts) |
+| **Part 1** · 재시작 후 누락 구간 백필 | 보관 구간을 스캔해 비어 있는 구간을 전부 채움 (`restart-gap`) + 주기적 reconciler | [`backfill.ts`](src/collector/backfill.ts) · [`reconcile.ts`](src/collector/reconcile.ts) |
 | **Part 2** · 운영 대시보드 | 마켓(`/`) · 운영 현황(`/ops`) 2개 화면 | [`app/(dash)/`](src/app) |
 | **Part 2** · 실시간 확인 | SSE(`/api/stream`) 1초 주기 push | [`api/stream/`](src/app/api/stream) |
 | **Part 2** · 지표 선택 이유·근거 문서 | 설계 원칙 · 계층 구조 · 임계값 근거 · 장애 시나리오 | **[`docs/dashboard-metrics.md`](docs/dashboard-metrics.md)** |
@@ -223,10 +223,20 @@ SSE가 끊겨도 마지막 프레임은 화면에 남습니다. 그대로 두면
 > **핵심: "최초 실행"과 "재시작 누락"을 별개 기능이 아닌 하나의 메커니즘으로 처리합니다.**
 
 ```
-저장된 캔들 이력 조회
-   ├─ 없음(최초 실행)  → 최근 BACKFILL_DAYS 일치 전체 백필   (first-run)
-   └─ 있음(재시작)    → 마지막 캔들 ~ 현재 구간만 백필      (restart-gap)
+보관 중인 구간을 스캔해 비어 있는 구간(hole)을 전부 찾아 채운다
+   ├─ 저장된 이력이 없거나 BACKFILL_DAYS에 못 미침 → 창 전체가 하나의 hole  (first-run)
+   └─ 이력이 충분함 → 실제로 비어 있는 구간만                              (restart-gap)
 ```
+
+**첫 봉과 마지막 봉으로 추론하지 않고 데이터에 직접 묻습니다.** 추론은 중간이 뚫린
+경우를 놓치는데, 하필 그게 실제로 일어나는 경우입니다 — 심볼은 하나씩 순차로 채우므로
+앞 심볼을 채우는 동안 뒤 심볼은 이미 라이브 봉을 받고 있습니다. 그러면 그 심볼은
+"마지막 봉이 최신"이라 `이미 최신`으로 판정되고, 가운데 며칠이 비어도 아무도 다시 보지
+않습니다(reconciler는 최근 30분만 훑습니다). 실제로 이 경로로 ETHUSDT 108시간이 유실됐고,
+스캔 방식으로 바꾼 뒤 같은 DB에서 9개 hole·464,841봉을 찾아냈습니다.
+
+스캔 범위는 보관 기간(`RETENTION_DAYS`)까지입니다 — 그보다 오래된 hole은 어차피 다음
+정리에서 지워지므로 채우는 게 REST 낭비입니다.
 
 여기에 두 겹의 안전장치가 더해집니다.
 

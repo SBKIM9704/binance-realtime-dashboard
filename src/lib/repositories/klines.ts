@@ -360,6 +360,62 @@ export function pruneKlinesBefore(interval: string, cutoff: number): number {
   return info.changes;
 }
 
+/** A contiguous run of missing candles, inclusive on both ends. */
+export interface GapRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Contiguous runs of missing candles in [from, to], as ranges.
+ *
+ * The reconciler's approach — read every stored open_time and diff it against the
+ * expected grid — is fine for its 30-minute window but not for a startup scan: a
+ * week of 1s candles is ~600k rows to carry into JS just to find the holes. SQL
+ * knows where they are already; `LAG` returns only the boundaries, so the result
+ * is a handful of rows whatever the window's size.
+ *
+ * `from`/`to` are treated as bucket open times: a missing head or tail is reported
+ * as its own range, and an empty window is one range covering the whole thing.
+ */
+export function findGapRanges(
+  symbol: string,
+  interval: string,
+  from: number,
+  to: number,
+  stepMs: number,
+): GapRange[] {
+  if (stepMs <= 0 || to < from) return [];
+  const db = getDb();
+
+  const bounds = db
+    .prepare(
+      `SELECT MIN(open_time) AS lo, MAX(open_time) AS hi FROM klines
+        WHERE symbol = ? AND interval = ? AND open_time BETWEEN ? AND ?`,
+    )
+    .get(symbol, interval, from, to) as { lo: number | null; hi: number | null };
+
+  if (bounds.lo === null || bounds.hi === null) return [{ start: from, end: to }];
+
+  const interior = db
+    .prepare(
+      `SELECT prev, open_time AS next FROM (
+         SELECT open_time, LAG(open_time) OVER (ORDER BY open_time) AS prev
+           FROM klines
+          WHERE symbol = ? AND interval = ? AND open_time BETWEEN ? AND ?
+       )
+        WHERE prev IS NOT NULL AND open_time - prev > ?
+        ORDER BY prev ASC`,
+    )
+    .all(symbol, interval, from, to, stepMs) as { prev: number; next: number }[];
+
+  const gaps: GapRange[] = [];
+  if (bounds.lo > from) gaps.push({ start: from, end: bounds.lo - stepMs });
+  for (const g of interior) gaps.push({ start: g.prev + stepMs, end: g.next - stepMs });
+  if (bounds.hi < to) gaps.push({ start: bounds.hi + stepMs, end: to });
+  return gaps;
+}
+
 /** Existing open_times within [start, end], ascending. Used for gap detection. */
 export function getOpenTimesInRange(
   symbol: string,

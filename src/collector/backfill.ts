@@ -2,7 +2,12 @@ import { fetchKlines, sleep } from "../lib/binance";
 import { BACKFILL_PAGE_SIZE } from "../lib/backfill-progress";
 import { config, type HistoryTier } from "../lib/config";
 import { INTERVAL_TO_MS } from "../lib/intervals";
-import { getMaxOpenTime, getMinOpenTime, upsertKlines } from "../lib/repositories/klines";
+import {
+  findGapRanges,
+  getMaxOpenTime,
+  getMinOpenTime,
+  upsertKlines,
+} from "../lib/repositories/klines";
 import {
   advanceBackfill,
   beginBackfill,
@@ -89,36 +94,66 @@ export async function fetchAndStoreRange(
 
 /**
  * Startup / restart backfill for a single symbol. One unified mechanism:
- *   - history doesn't reach back BACKFILL_DAYS → backfill the full window
- *     (first run, OR a live WS candle already landed before backfill ran)
- *   - history reaches back far enough → fill only the gap from the last candle
+ * scan the kept window for holes and fill every one of them.
+ *   - nothing stored, or history doesn't reach back BACKFILL_DAYS → the scan finds
+ *     one hole covering the whole window (first run)
+ *   - history reaches back far enough → the scan finds whatever is actually missing,
+ *     which is usually just the tail since the last stored candle (restart)
  *
- * We key off the EARLIEST stored candle, not the latest, so a single live candle
- * that arrived first (live-first ordering) doesn't fool us into "already up to date".
+ * Asking the data where the holes are, rather than inferring them from its first
+ * and last candle, is the point. Inference misses interior holes, and it misses
+ * them precisely when they matter: symbols are filled one at a time, so while the
+ * first symbol's fill runs the live stream is already writing candles for the
+ * second — whose newest candle is then current, whose oldest is old, and whose
+ * middle can be missing days. That symbol used to be declared "already up to date"
+ * and its hole was never seen again (the reconciler only looks back 30 minutes).
+ *
+ * The scan is bounded by retention: a hole older than what we keep would be pruned
+ * on the next pass, so filling it is wasted REST budget.
  */
 export async function backfillSymbol(symbol: string): Promise<number> {
   const interval = config.KLINE_INTERVAL;
+  const step = config.intervalMs;
   const now = Date.now();
-  const desiredStart = now - config.BACKFILL_DAYS * 24 * 60 * 60 * 1000;
-  const maxOpen = getMaxOpenTime(symbol, interval);
+  const alignDown = (t: number) => Math.floor(t / step) * step;
+
+  const desiredStart = alignDown(now - config.BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+  const retentionStart = alignDown(now - config.RETENTION_DAYS * 24 * 60 * 60 * 1000);
   const minOpen = getMinOpenTime(symbol, interval);
+  // Only fully-closed buckets: the one still forming belongs to the live stream.
+  const lastClosed = alignDown(now) - step;
 
   const needsFullWindow = minOpen === null || minOpen > desiredStart;
-  const start = needsFullWindow ? desiredStart : (maxOpen ?? desiredStart) + config.intervalMs;
+  const scanStart = needsFullWindow ? desiredStart : Math.max(minOpen, retentionStart);
   const reason = needsFullWindow ? "first-run" : "restart-gap";
   addEvent({ ts: now, symbol, type: "backfill_start", detail: reason, count: 0 });
 
-  if (start > now) {
+  const gaps = lastClosed >= scanStart
+    ? findGapRanges(symbol, interval, scanStart, lastClosed, step)
+    : [];
+
+  if (gaps.length === 0) {
     log(`[backfill] ${symbol}: already up to date (${reason})`);
     skipBackfill(symbol, interval, reason);
     addEvent({ ts: Date.now(), symbol, type: "backfill_done", detail: reason, count: 0 });
     return 0;
   }
 
+  const missing = gaps.reduce((sum, g) => sum + Math.round((g.end - g.start) / step) + 1, 0);
   log(
-    `[backfill] ${symbol}: ${reason}, from ${new Date(start).toISOString()} to now`,
+    `[backfill] ${symbol}: ${reason}, ${gaps.length} hole(s), ` +
+      `${missing.toLocaleString()} candle(s) from ${new Date(gaps[0].start).toISOString()}`,
   );
-  const written = await fetchAndStoreRange(symbol, start, now, interval, { kind: "live", reason });
+
+  // Each hole is its own tracked fill, so the progress bar always describes a range
+  // that is genuinely being fetched rather than one that is mostly already stored.
+  let written = 0;
+  for (const gap of gaps) {
+    written += await fetchAndStoreRange(symbol, gap.start, gap.end, interval, {
+      kind: "live",
+      reason,
+    });
+  }
 
   incrementStatus(symbol, "backfilledCount", written);
   const newMax = getMaxOpenTime(symbol, interval);
