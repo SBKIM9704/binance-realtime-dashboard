@@ -1,7 +1,6 @@
 "use client";
 
 import { AppHeader } from "@/components/dashboard/app-header";
-import { BackfillPanel } from "@/components/dashboard/backfill-panel";
 import { LoadingState } from "@/components/dashboard/loading-state";
 import { StatusRibbon } from "@/components/dashboard/status-ribbon";
 import { SnapshotProvider, useDashboardSnapshot } from "@/components/snapshot-provider";
@@ -34,10 +33,6 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   return (
     <>
       <StatusRibbon snapshot={snapshot} />
-      {/* Cold-start progress. Above the views rather than inside one, because a
-          half-filled database is why *either* view looks thin — and it removes
-          itself the moment the fills land. */}
-      <BackfillPanel snapshot={snapshot} />
       {/*
         Every number below this point came from the last frame. Once that frame is
         stale, draining it visually is the honest thing to do — a monitoring page
