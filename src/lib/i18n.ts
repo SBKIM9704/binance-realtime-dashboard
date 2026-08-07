@@ -91,15 +91,13 @@ export const dict = {
     "range.all": "전체",
     "range.source": "{interval} 데이터 기준",
 
-    "backfill.title": "과거 데이터 채우는 중",
-    "backfill.hint": "차트 범위와 24시간 지표는 데이터가 채워지는 대로 정확해집니다.",
-    "backfill.pagesLeft": "{n}페이지 남음",
-    "backfill.elapsed": "경과 {age}",
-    "backfill.waiting": "대기",
-    "backfill.upToDate": "이미 최신",
-    "backfill.candles": "{n}봉",
-    "backfill.tier.live": "실시간 티어",
-    "backfill.tier.history": "히스토리 티어",
+
+
+
+
+
+
+
 
     "events.title": "이벤트 로그",
     "events.empty": "아직 이벤트가 없습니다.",
@@ -208,15 +206,13 @@ export const dict = {
     "range.all": "All",
     "range.source": "from {interval} data",
 
-    "backfill.title": "Backfilling history",
-    "backfill.hint": "Chart ranges and 24h figures sharpen as data lands.",
-    "backfill.pagesLeft": "{n} page(s) to go",
-    "backfill.elapsed": "elapsed {age}",
-    "backfill.waiting": "waiting",
-    "backfill.upToDate": "up to date",
-    "backfill.candles": "{n} candles",
-    "backfill.tier.live": "Live tier",
-    "backfill.tier.history": "History tier",
+
+
+
+
+
+
+
 
     "events.title": "Event Log",
     "events.empty": "No events yet.",

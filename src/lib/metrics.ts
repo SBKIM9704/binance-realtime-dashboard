@@ -9,7 +9,6 @@ import {
   getRecentKlines,
   type Stats24h,
 } from "./repositories/klines";
-import { getBackfillTasks } from "./repositories/backfill";
 import { pickSourceInterval } from "./source-interval";
 import { getAllStatus, getEventCountSince, getRecentEvents } from "./repositories/pipeline";
 import { getSystemMetrics } from "./repositories/system";
@@ -175,7 +174,6 @@ export function buildSnapshot(seriesPoints = SERIES_POINTS, eventLimit = 20): Da
     market,
     series,
     events: getRecentEvents(eventLimit),
-    backfill: getBackfillTasks(),
     system,
   };
 }

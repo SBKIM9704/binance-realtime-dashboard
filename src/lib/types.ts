@@ -78,8 +78,9 @@ export type BackfillPhase = "pending" | "running" | "done";
  *
  * Backfill is the longest opaque stretch of a cold start — a day of 1s candles is
  * 87 paginated REST calls per symbol — so the collector records where it is as it
- * goes. The console renderer and the dashboard both read this, which is why it
- * lives in SQLite rather than in the collector's memory.
+ * goes. It lives in SQLite rather than in the collector's memory because the row
+ * outlives the async call that is filling it: the console renderer paints on its
+ * own timer, and reads the table rather than being threaded through every fill.
  */
 export interface BackfillTask {
   symbol: string;
@@ -158,7 +159,5 @@ export interface DashboardSnapshot {
   market: MarketMetrics[];
   series: Record<string, SparkPoint[]>;
   events: PipelineEvent[];
-  /** In-flight (and just-finished) REST backfills, so the UI can show cold-start progress. */
-  backfill: BackfillTask[];
   system: SystemMetrics & { errorsLastMin: number };
 }

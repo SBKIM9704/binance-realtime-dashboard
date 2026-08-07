@@ -8,8 +8,8 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
   주기적 reconciler로 결측 구간 보정. gap 탐지 + REST 채움을 단일 메커니즘으로 구현하여
   최초 실행/서버 재시작 누락을 모두 커버. 별도로 **코스 히스토리 티어**(`HISTORY_TIERS`,
   기본 1분봉 30일 + 1시간봉 전체)를 백그라운드로 유지 — 1초봉으로는 실제 역사를 담을 수 없기 때문.
-  백필 진행 상황은 `backfill_progress` 테이블에 기록되어 콘솔(`collector/progress.ts`)과
-  대시보드 배너 양쪽이 같은 행을 읽는다.
+  백필 진행 상황은 `backfill_progress` 테이블에 기록되고 콘솔(`collector/progress.ts`)이 읽는다 —
+  웹에는 싣지 않는다(매초 SSE 프레임을 콜드 스타트용 행으로 채우지 않기 위해).
 - **Web** (`src/app/`) — Next.js(App Router) 대시보드. 두 라우트를 `(dash)` 셸이 감쌈:
   `/` 마켓(캔들 차트 + 시세 카드), `/ops` 운영 현황. SSE(`/api/stream`)로 1초 갱신.
   차트는 `/api/candles`에서 롤업된 캔들을 받음.
@@ -28,8 +28,8 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
 - **결측은 추론하지 않고 스캔한다.** 시작 백필은 첫/마지막 봉이 아니라 `findGapRanges`로
   보관 구간의 빈 구간을 찾는다. 라이브 봉이 먼저 도착하면 마지막 봉은 항상 최신이라,
   추론은 가운데 뚫린 며칠을 "이미 최신"으로 판정한다.
-- **백필 진행률 계산은 `src/lib/backfill-progress.ts` 한 곳에만 있다.** 콘솔과 웹이 같은
-  퍼센트를 말해야 하고, 잔여 작업은 페이지 수(시간 비용)로 센다.
+- **백필 진행률은 덮은 시간으로 재고, 잔여는 페이지로 센다.** 총 페이지 수를 모르는 티어가
+  있고(전체 이력), 기다림의 단위는 REST 호출이기 때문. `src/lib/backfill-progress.ts`.
 - **`better-sqlite3`는 JS number를 REAL로 바인딩한다.** 정수 나눗셈이 필요하면 `CAST(... AS INTEGER)`.
 
 ## Commands
