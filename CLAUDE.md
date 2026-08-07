@@ -8,6 +8,8 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
   주기적 reconciler로 결측 구간 보정. gap 탐지 + REST 채움을 단일 메커니즘으로 구현하여
   최초 실행/서버 재시작 누락을 모두 커버. 별도로 **코스 히스토리 티어**(`HISTORY_TIERS`,
   기본 1분봉 30일 + 1시간봉 전체)를 백그라운드로 유지 — 1초봉으로는 실제 역사를 담을 수 없기 때문.
+  백필 진행 상황은 `backfill_progress` 테이블에 기록되어 콘솔(`collector/progress.ts`)과
+  대시보드 배너 양쪽이 같은 행을 읽는다.
 - **Web** (`src/app/`) — Next.js(App Router) 대시보드. 두 라우트를 `(dash)` 셸이 감쌈:
   `/` 마켓(캔들 차트 + 시세 카드), `/ops` 운영 현황. SSE(`/api/stream`)로 1초 갱신.
   차트는 `/api/candles`에서 롤업된 캔들을 받음.
@@ -23,6 +25,8 @@ Binance BTCUSDT·ETHUSDT 실시간 거래 데이터를 수집하고 운영 현�
   차트는 `pickSourceInterval`이 고른 조밀한 티어에서 계산한다.
 - **등락 색은 `src/lib/trend.ts` 한 곳에만 정의한다.** 캔버스와 DOM이 같은 정의를 읽는다.
 - **낡은 프레임은 낡았다고 표시한다.** SSE가 끊기면 상태를 crit으로 강제하고 수치를 흐린다.
+- **백필 진행률 계산은 `src/lib/backfill-progress.ts` 한 곳에만 있다.** 콘솔과 웹이 같은
+  퍼센트를 말해야 하고, 잔여 작업은 페이지 수(시간 비용)로 센다.
 - **`better-sqlite3`는 JS number를 REAL로 바인딩한다.** 정수 나눗셈이 필요하면 `CAST(... AS INTEGER)`.
 
 ## Commands

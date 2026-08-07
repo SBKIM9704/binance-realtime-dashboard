@@ -68,6 +68,37 @@ export interface PipelineEvent {
   count: number;
 }
 
+/** Which tier a backfill is filling: the collected interval, or a coarse history tier. */
+export type BackfillKind = "live" | "history";
+
+export type BackfillPhase = "pending" | "running" | "done";
+
+/**
+ * Progress of one REST backfill range, one per (symbol, interval).
+ *
+ * Backfill is the longest opaque stretch of a cold start — a day of 1s candles is
+ * 87 paginated REST calls per symbol — so the collector records where it is as it
+ * goes. The console renderer and the dashboard both read this, which is why it
+ * lives in SQLite rather than in the collector's memory.
+ */
+export interface BackfillTask {
+  symbol: string;
+  interval: string;
+  kind: BackfillKind;
+  phase: BackfillPhase;
+  /** Why this fill started: first-run, restart-gap, extend-back, catch-up. */
+  reason: string;
+  /** The window being filled, epoch ms. Both 0 while the task is still pending. */
+  rangeStart: number;
+  rangeEnd: number;
+  /** Open time of the last candle fetched — the position inside the window. */
+  cursorTime: number;
+  written: number;
+  pages: number;
+  startedAt: number;
+  updatedAt: number;
+}
+
 /** Derived market metrics for a symbol. Kline-derived + live ticker fields. */
 export interface MarketMetrics {
   symbol: string;
@@ -127,5 +158,7 @@ export interface DashboardSnapshot {
   market: MarketMetrics[];
   series: Record<string, SparkPoint[]>;
   events: PipelineEvent[];
+  /** In-flight (and just-finished) REST backfills, so the UI can show cold-start progress. */
+  backfill: BackfillTask[];
   system: SystemMetrics & { errorsLastMin: number };
 }

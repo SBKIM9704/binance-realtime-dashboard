@@ -1,4 +1,6 @@
 import { config } from "../lib/config";
+import { logRaw } from "./logger";
+import { amber, bold, dim, green, red } from "./style";
 
 /**
  * Startup banner and readiness card for the collector.
@@ -10,19 +12,8 @@ import { config } from "../lib/config";
  * the prices just collected, which is the cheapest possible proof that the numbers
  * are real and not zeros.
  *
- * Colour is emitted only for a TTY and never when NO_COLOR is set, so redirecting
- * the log to a file leaves clean text.
+ * The wait between the two is covered by the progress block in `progress.ts`.
  */
-const useColor = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
-
-const ESC = "\u001b[";
-const paint = (code: string, s: string) => (useColor ? `${ESC}${code}m${s}${ESC}0m` : s);
-const amber = (s: string) => paint("38;5;214", s);
-const dim = (s: string) => paint("2", s);
-const bold = (s: string) => paint("1", s);
-const green = (s: string) => paint("32", s);
-const red = (s: string) => paint("31", s);
-
 const WORDMARK = [
   "  █▀▄▀█ ▄▀█ █▀█ █▄▀ █▀▀ ▀█▀   █▀▄ █▀▀ █▀ █▄▀",
   "  █ ▀ █ █▀█ █▀▄ █ █ ██▄  █    █▄▀ ██▄ ▄█ █ █",
@@ -78,7 +69,7 @@ export function printBanner(): void {
     ...rows.map(([k, v]) => `  ${dim(k.padEnd(10))}${v}`),
     "",
   ];
-  console.log(lines.join("\n"));
+  logRaw(lines.join("\n"));
 }
 
 export interface ReadyRow {
@@ -113,5 +104,5 @@ export function printReady(rows: ReadyRow[], elapsedMs: number): void {
   }
 
   lines.push("");
-  console.log(lines.join("\n"));
+  logRaw(lines.join("\n"));
 }
