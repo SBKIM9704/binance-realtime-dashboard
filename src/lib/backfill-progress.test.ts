@@ -70,29 +70,48 @@ describe("remaining work", () => {
 
 describe("summariseBackfill", () => {
   const big = task({ cursorTime: NOW - 20 * HOUR, startedAt: NOW - 30_000 });
+  const pending = task({
+    symbol: "ETHUSDT",
+    phase: "pending",
+    rangeStart: 0,
+    rangeEnd: 0,
+    startedAt: 0,
+  });
 
-  it("says nothing when every fill is finished", () => {
-    expect(summariseBackfill([task({ phase: "done" })])).toBeNull();
+  it("says nothing when the collector has published no plan", () => {
     expect(summariseBackfill([])).toBeNull();
   });
 
-  it("says nothing while the plan is only pending — no fill is under way yet", () => {
-    expect(summariseBackfill([task({ phase: "pending", rangeStart: 0, rangeEnd: 0 })])).toBeNull();
+  it("keeps finished fills in the list", () => {
+    // A symbol that had nothing to fill must still appear, or the reader is left
+    // with one bar moving and no account of the other symbol.
+    const summary = summariseBackfill([big, task({ symbol: "ETHUSDT", phase: "done" })]);
+    expect(summary!.tasks).toHaveLength(2);
+    expect(summary!.pct).toBeCloseTo((100 / 6 + 100) / 2, 6);
   });
 
-  it("ignores fills too short to be worth a banner", () => {
-    // A reconnect gap or an hourly top-up is over before it can be read.
-    expect(summariseBackfill([task({ cursorTime: NOW - 1_000 })])).toBeNull();
+  it("is inactive once every fill is finished", () => {
+    const summary = summariseBackfill([task({ phase: "done" })]);
+    expect(summary!.active).toBe(false);
+    expect(summary!.worthShowing).toBe(false);
+    expect(summary!.pct).toBe(100);
   });
 
-  it("reports the open fills, their average progress and the pages left", () => {
-    const pending = task({ symbol: "ETHUSDT", phase: "pending", rangeStart: 0, rangeEnd: 0, startedAt: 0 });
+  it("is active but not worth showing while the plan is only pending", () => {
+    const summary = summariseBackfill([pending]);
+    expect(summary!.active).toBe(true);
+    expect(summary!.worthShowing).toBe(false); // nothing is under way yet
+  });
+
+  it("does not announce fills too short to be worth reading", () => {
+    // A reconnect gap or an hourly top-up is over before a banner can be read.
+    expect(summariseBackfill([task({ cursorTime: NOW - 1_000 })])!.worthShowing).toBe(false);
+  });
+
+  it("counts the pages left across the unfinished fills only", () => {
     const summary = summariseBackfill([big, pending, task({ phase: "done" })]);
-
-    expect(summary).not.toBeNull();
-    expect(summary!.tasks).toHaveLength(2); // done tasks drop out
-    expect(summary!.pct).toBeCloseTo((100 / 6 + 0) / 2, 6); // 4h of 24h covered, plus a 0%
-    expect(summary!.remainingPages).toBe(72); // 20h of 1s candles
+    expect(summary!.worthShowing).toBe(true);
+    expect(summary!.remainingPages).toBe(72); // 20h of 1s candles; the done one adds nothing
     // The earliest real start — a pending task has no start time to average in.
     expect(summary!.startedAt).toBe(NOW - 30_000);
   });

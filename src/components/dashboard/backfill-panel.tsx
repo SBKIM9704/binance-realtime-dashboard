@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useApp } from "@/components/providers";
 import { remainingPages, summariseBackfill, taskPct } from "@/lib/backfill-progress";
 import { fmtClock, fmtDuration, fmtInt } from "@/lib/format";
@@ -26,7 +27,18 @@ const EVENT_LINES = 3;
 export function BackfillPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   const { t } = useApp();
   const summary = summariseBackfill(snapshot.backfill);
-  if (!summary) return null;
+
+  // Once a plan is big enough to announce, stay up until it finishes. Re-deciding
+  // every frame would hide the panel between symbols — the running fill drops under
+  // the threshold before the next one has a range to count.
+  const shown = useRef(false);
+  useEffect(() => {
+    if (summary?.worthShowing) shown.current = true;
+    else if (!summary?.active) shown.current = false;
+  }, [summary?.worthShowing, summary?.active]);
+
+  if (!summary || !summary.active) return null;
+  if (!summary.worthShowing && !shown.current) return null;
 
   const events = snapshot.events.filter((e) => STARTUP_EVENTS.has(e.type)).slice(0, EVENT_LINES);
 
@@ -78,10 +90,23 @@ export function BackfillPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   );
 }
 
+/** Right-hand column: what this row is doing, in the terms that cost time. */
+function useDetail(task: BackfillTask): string {
+  const { t } = useApp();
+  if (task.phase === "pending") return t("backfill.waiting");
+  if (task.written > 0) return t("backfill.candles", { n: fmtInt(task.written) });
+  // A finished fill that wrote nothing had nothing to write — the one case a reader
+  // is most likely to misread as "stuck" or "forgotten".
+  if (task.phase === "done") return t("backfill.upToDate");
+  return `${remainingPages(task)}p`;
+}
+
 function TaskRow({ task }: { task: BackfillTask }) {
   const { t } = useApp();
+  const detail = useDetail(task);
   const pct = taskPct(task);
   const pending = task.phase === "pending";
+  const done = task.phase === "done";
   const label = `${task.symbol.replace("USDT", "")} · ${task.interval}`;
 
   return (
@@ -100,7 +125,11 @@ function TaskRow({ task }: { task: BackfillTask }) {
         <span
           className={cn(
             "block h-full rounded-full transition-[width] duration-500",
-            pending ? "bg-muted-foreground/40" : "bg-primary",
+            pending
+              ? "bg-muted-foreground/40"
+              : done
+                ? "bg-[hsl(var(--success))]"
+                : "bg-primary",
           )}
           style={{ width: `${pct}%` }}
         />
@@ -109,11 +138,7 @@ function TaskRow({ task }: { task: BackfillTask }) {
         {pct.toFixed(0)}%
       </span>
       <span className="tnum hidden w-24 shrink-0 text-right text-muted-foreground sm:block">
-        {pending
-          ? t("backfill.waiting")
-          : task.written > 0
-            ? t("backfill.candles", { n: fmtInt(task.written) })
-            : `${remainingPages(task)}p`}
+        {detail}
       </span>
     </li>
   );
